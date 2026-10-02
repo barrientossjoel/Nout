@@ -8,7 +8,9 @@ import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import { AudioExtension } from './extensions/audio'
 import { Markdown } from 'tiptap-markdown'
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useRef, useState, useMemo, forwardRef, useImperativeHandle } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { acquireCollabSession, getCollaboratorColor, type CollabSession } from '../../features/collaboration'
 
 import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
@@ -16,9 +18,6 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 
 import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-import YPartyKitProvider from 'y-partykit/provider'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 
@@ -64,38 +63,7 @@ function uploadImageFile(file: File, view: import('@tiptap/pm/view').EditorView)
         .catch(err => console.error('Image upload failed:', err))
 }
 
-const providerCache = new Map<string, { ydoc: Y.Doc, provider: any, idbProvider: IndexeddbPersistence, refCount: number, timeoutId?: ReturnType<typeof setTimeout> }>();
 
-function getOrCreateProvider(documentId: string | undefined | null) {
-    if (!documentId) return null;
-    let cached = providerCache.get(documentId);
-    if (!cached) {
-        const ydoc = new Y.Doc();
-        const partyKitHost = import.meta.env.VITE_PARTYKIT_HOST;
-        let provider;
-        
-        if (import.meta.env.DEV) {
-            const host = window.location.host;
-            console.log(`[Editor] Connecting to local WS via proxy at ${host} (Room: note-${documentId})`);
-            provider = new WebsocketProvider(`ws://${host}/ws`, `note-${documentId}`, ydoc);
-        } else if (partyKitHost) {
-            let host = partyKitHost.replace(/^https?:\/\//, '');
-            console.log(`[Editor] Connecting to PartyKit at ${host} (Room: note-${documentId})`);
-            provider = new YPartyKitProvider(host, `note-${documentId}`, ydoc);
-        } else {
-            let host = window.location.hostname;
-            console.log(`[Editor] Connecting to fallback YPartyKit at ${host} (Room: note-${documentId})`);
-            provider = new YPartyKitProvider(host, `note-${documentId}`, ydoc);
-        }
-            
-        // Local-first persistence
-        const idbProvider = new IndexeddbPersistence(`note-${documentId}`, ydoc);
-            
-        cached = { ydoc, provider, idbProvider, refCount: 0 };
-        providerCache.set(documentId, cached);
-    }
-    return cached;
-}
 
 export const Editor = forwardRef<EditorRef, EditorProps>(({
     content,
@@ -117,44 +85,37 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
         table: { top: number; left: number };
     } | null>(null)
 
-    // Automatically assign a random cursor color
-    const cursorColor = useRef('#' + Math.floor(Math.random() * 16777215).toString(16)).current
+    const { user } = useAuth()
+    const userName = user?.name || user?.email?.split('@')[0] || 'Collaborator'
+    const cursorColor = useMemo(() => {
+        return getCollaboratorColor(user?.id || user?.email || (typeof window !== 'undefined' ? window.navigator.userAgent : 'anonymous'))
+    }, [user?.id, user?.email])
 
-    // ── Yjs + PartyKit setup ──────────────────────────────────────────────────
-    // These MUST be declared before useEditor to maintain stable hooks order.
-    const isCollaborative = !!documentId;
-    const [collaboration] = useState(() => isCollaborative ? getOrCreateProvider(documentId as string) : null);
+    // ── Yjs + PartyKit collaboration session ──────────────────────────────────
+    const isCollaborative = Boolean(documentId)
+    const session = useMemo(() => {
+        if (!documentId) return null
+        return acquireCollabSession(`note-${documentId}`)
+    }, [documentId])
 
-    // Destroy the provider when this editor instance unmounts (key={documentId} ensures
-    // a fresh instance per document, so we never reuse a stale provider).
     useEffect(() => {
-        if (!collaboration || !documentId) return;
-        
-        collaboration.refCount++;
-        if (collaboration.timeoutId) {
-            clearTimeout(collaboration.timeoutId);
-            collaboration.timeoutId = undefined;
-        }
-
         return () => {
-            collaboration.refCount--;
-            if (collaboration.refCount === 0) {
-                // Delay destruction to survive React 18 StrictMode unmount/remount
-                collaboration.timeoutId = setTimeout(() => {
-                    if (collaboration.refCount === 0) {
-                        console.log(`[Editor] Destroying provider for Room: doc-${documentId}`);
-                        collaboration.provider.destroy();
-                        collaboration.idbProvider.destroy();
-                        collaboration.ydoc.destroy();
-                        providerCache.delete(documentId);
-                    }
-                }, 250);
-            }
-        };
-    }, [collaboration, documentId]);
+            session?.release()
+        }
+    }, [session])
 
-    const ydoc = collaboration?.ydoc as Y.Doc;
-    const provider = collaboration?.provider;
+    const ydoc = session?.ydoc as Y.Doc | undefined
+    const provider = session?.provider
+
+    // Update awareness user info whenever auth loads
+    useEffect(() => {
+        if (!provider?.awareness) return;
+        provider.awareness.setLocalStateField('user', {
+            name: userName,
+            color: cursorColor,
+            avatar: user?.avatarUrl,
+        });
+    }, [provider, userName, cursorColor, user?.avatarUrl]);
     // ─────────────────────────────────────────────────────────────────────────
 
     // Keep a ref to `onChange` so the TipTap onUpdate closure always calls the
@@ -195,11 +156,11 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
             TableRow,
             TableHeader,
             TableCell,
-            ...(isCollaborative && provider ? [
+            ...(documentId && ydoc && provider ? [
                 Collaboration.configure({ document: ydoc }),
                 CollaborationCursor.configure({
                     provider,
-                    user: { name: 'Anonymous User', color: cursorColor },
+                    user: { name: userName, color: cursorColor },
                 }),
             ] : []),
         ],
@@ -394,6 +355,12 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
         editor: editor
     }))
 
+    useEffect(() => {
+        if (editor) {
+            editor.setEditable(editable);
+        }
+    }, [editor, editable]);
+
     // ─── Content management ────────────────────────────────────────────────────
     //
     // Non-collaborative: sync `content` prop to the editor at every change.
@@ -425,7 +392,7 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
             if (seeded.current) return;
             
             // Wait for IndexedDB to finish loading local state before we decide to seed
-            if (!collaboration?.idbProvider.synced) {
+            if (!session?.idb.synced) {
                 console.log('[Editor] IDB not yet synced, deferring seed...');
                 setTimeout(attemptSeed, 50);
                 return;

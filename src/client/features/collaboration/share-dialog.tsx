@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Share2, Link2, Trash2, Check } from 'lucide-react';
 import { getDocumentShares, createDocumentShare, deleteDocumentShare } from '../../actions/actions';
 import { Avatar, AvatarFallback } from '../../components/ui/avatar';
+import { isTauri } from '../../../core/utils/platform';
 
 interface ShareDialogProps {
     elementId: string;
@@ -69,8 +70,14 @@ export function ShareDialog({ elementId, elementType, open: controlledOpen, onOp
         }
     };
 
+    const getShareUrl = () => {
+        if (typeof window === 'undefined') return '';
+        const base = isTauri() ? 'https://nout.vercel.app' : window.location.origin;
+        return `${base}/${elementId}`;
+    };
+
     const handleCopyLink = () => {
-        navigator.clipboard.writeText(`${window.location.origin}/${elementId}`);
+        navigator.clipboard.writeText(getShareUrl());
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -96,10 +103,10 @@ export function ShareDialog({ elementId, elementType, open: controlledOpen, onOp
                         <div className="flex gap-2">
                             <Input
                                 readOnly
-                                value={`${window.location.origin}/${elementId}`}
-                                className="flex-1 bg-muted/50"
+                                value={getShareUrl()}
+                                className="flex-1 bg-muted/50 font-mono text-xs"
                             />
-                            <Button variant="secondary" onClick={handleCopyLink} className="gap-2">
+                            <Button variant="secondary" onClick={handleCopyLink} className="gap-2 shrink-0">
                                 {copied ? <Check className="h-4 w-4 text-green-500" /> : <Link2 className="h-4 w-4" />}
                                 {copied ? t('linkCopied') : t('copyLink')}
                             </Button>

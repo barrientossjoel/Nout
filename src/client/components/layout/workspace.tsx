@@ -26,6 +26,7 @@ import { PanelRight, Menu, Plus, Copy, Search, Calendar, Settings } from 'lucide
 import { MobileNav } from './mobile-nav'
 import { selectTabInPane, removeTabFromPane, getGlobalTabs, closeTab, removeNode, findFirstPaneId } from '../../lib/utils/layout-utils'
 import { ErrorBoundary } from '../../components/error-boundary'
+import { AiPanel } from '../../features/ai/components/ai-panel'
 
 interface WorkspaceProps {
     layout: LayoutNode
@@ -509,6 +510,14 @@ export function Workspace({
                             <div className="h-full w-full bg-background">
                                 <NotesPanel documentId={null} className="h-full border-0" />
                             </div>
+                        ) : activeTabId === 'ai' ? (
+                            <AiPanel 
+                                documents={documents}
+                                showSidebar={showSidebar}
+                                onToggleSidebar={toggleSidebar}
+                                showTabs={node.showTabs !== false}
+                                onToggleTabs={() => handleToggleTabs(node.id)}
+                            />
                         ) : activeTabId === 'dashboard' || !doc ? (
                             <Dashboard
                                 documents={documents}

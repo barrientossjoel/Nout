@@ -34,7 +34,15 @@ const translations = {
     }
 };
 
-export default function Login() {
+import { cn } from '@/client/lib/utils/utils';
+
+export interface LoginProps {
+    embedded?: boolean;
+    onSuccess?: () => void;
+    className?: string;
+}
+
+export default function Login({ embedded = false, onSuccess, className }: LoginProps = {}) {
     const { setUser } = useAuth();
     const [lang] = useState<'en' | 'es'>(() => {
         if (typeof window !== 'undefined') {
@@ -69,8 +77,12 @@ export default function Login() {
                 setSuccess(t.loginSuccess || "Login successful!");
                 setTimeout(() => {
                     setUser(data.user);
-                    window.history.pushState({}, '', '/');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
+                    if (onSuccess) {
+                        onSuccess();
+                    } else {
+                        window.history.pushState({}, '', '/');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                    }
                 }, 1500);
             }
         } catch (err) {
@@ -88,14 +100,9 @@ export default function Login() {
         window.dispatchEvent(new PopStateEvent('popstate'));
     };
 
-    return (
-        <div className="flex bg-background justify-center items-center h-screen w-full text-foreground relative selection:bg-neutral-800 dark">
-            <a href="/" onClick={(e) => navigate(e, '/')} className="absolute top-8 left-8 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group">
-                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                <span className="text-sm font-medium">{t.back}</span>
-            </a>
-
-            <div className="w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg relative z-10">
+    const cardContent = (
+        <div className={cn("w-full max-w-sm p-8 bg-[#121216] border border-white/[0.12] rounded-xl shadow-2xl relative z-10 flex flex-col justify-between", className)}>
+            <div>
                 <div className="flex justify-center mb-8">
                     <div className="flex items-center gap-2.5">
                         <img src="/icon_cropped.png" alt="Closure Logo" className="w-5 h-5 object-contain" />
@@ -129,7 +136,7 @@ export default function Login() {
                             required
                         />
                     </div>
-                    <Button type="submit" className="w-full bg-white/90 text-black hover:bg-white rounded-[6px] transition-colors mt-2">
+                    <Button type="submit" className="w-full bg-white/90 text-black hover:bg-white rounded-[6px] transition-colors mt-2 h-10 font-medium">
                         {t.login}
                     </Button>
                 </form>
@@ -139,14 +146,14 @@ export default function Login() {
                         <div className="w-full border-t border-border"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-card text-muted-foreground">{t.continueWith}</span>
+                        <span className="px-2 bg-[#121216] text-muted-foreground">{t.continueWith}</span>
                     </div>
                 </div>
 
                 <Button
                     type="button"
                     variant="outline"
-                    className="w-full rounded-[6px]"
+                    className="w-full rounded-[6px] h-10 font-medium border-border hover:bg-accent hover:text-accent-foreground"
                     onClick={handleGoogleLogin}
                 >
                     <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
@@ -169,14 +176,30 @@ export default function Login() {
                     </svg>
                     Google
                 </Button>
-
-                <p className="mt-6 text-center text-sm text-muted-foreground">
-                    {t.noAccount}{' '}
-                    <a href="/register" onClick={(e) => navigate(e, '/register')} className="text-foreground hover:underline">
-                        {t.signup}
-                    </a>
-                </p>
             </div>
+
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+                {t.noAccount}{' '}
+                <a href="/register" onClick={(e) => navigate(e, '/register')} className="text-foreground hover:underline">
+                    {t.signup}
+                </a>
+            </p>
+        </div>
+    );
+
+    if (embedded) {
+        return cardContent;
+    }
+
+    return (
+        <div className="flex bg-background justify-center items-center h-screen w-full text-foreground relative selection:bg-neutral-800 dark">
+            <a href="/" onClick={(e) => navigate(e, '/')} className="absolute top-8 left-8 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group">
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                <span className="text-sm font-medium">{t.back}</span>
+            </a>
+
+            {cardContent}
+
             {/* Ambient Background Glows like Landing */}
             <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-white/[0.02] rounded-full blur-[120px] pointer-events-none -z-10" />
             <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-white/[0.02] rounded-full blur-[100px] pointer-events-none -z-10" />

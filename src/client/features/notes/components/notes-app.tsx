@@ -5,7 +5,7 @@ import { DocumentView } from "../../documents/document-view"
 import { SettingsDialog } from "../../../components/settings/settings-dialog"
 import { useNotesData } from '../../../hooks/useNotesData'
 import { ErrorBoundary } from '../../../components/error-boundary'
-import { createDocument, deleteDocument, updateDocument } from '../../../actions/actions'
+import { createDocument, deleteDocument, updateDocument, getDocuments } from '../../../actions/actions'
 import type { Document, LayoutNode, WorkspaceState } from '../../../../core/types/notes'
 import { Dashboard } from '../../dashboard/dashboard'
 import { CalendarView } from '../../calendar/calendar-view'
@@ -89,7 +89,7 @@ function NotesAppInner() {
 
   // Validate currentView against documents when loaded
   useEffect(() => {
-    if (!isLoading && currentView !== 'dashboard' && currentView !== 'calendar' && currentView !== 'trash') {
+    if (!isLoading && currentView !== 'dashboard' && currentView !== 'calendar' && currentView !== 'trash' && currentView !== 'graph' && currentView !== 'ai') {
       const exists = documents.some(d => d.id === currentView)
       if (!exists) {
         // If the document doesn't exist (e.g. deleted on another device), fallback to dashboard
@@ -124,11 +124,8 @@ function NotesAppInner() {
   const handleUploadedPdf = async (docId: string) => {
     // Re-fetch documents so the new PDF doc appears in the sidebar
     try {
-      const res = await fetch('/api/documents?status=active')
-      if (res.ok) {
-        const docs = await res.json()
-        setDocuments(docs)
-      }
+      const docs = await getDocuments('active')
+      setDocuments(docs)
     } catch (e) {
       console.error('Failed to refresh docs after upload', e)
     }
@@ -265,7 +262,7 @@ function NotesAppInner() {
   const handleNavigate = (view: SidebarView, inPane?: boolean, isPreview: boolean = true) => {
     setCurrentView(view)
 
-    if (inPane && view !== "dashboard" && view !== "calendar" && view !== "trash") {
+    if (inPane && view !== "dashboard" && view !== "calendar" && view !== "trash" && view !== "graph" && view !== "ai") {
       setLayout(prev => splitNode(prev, activePaneId, 'horizontal', view))
     } else {
       updateLayoutWithDoc(view, isPreview)

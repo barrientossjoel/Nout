@@ -1,4 +1,5 @@
 import { client } from '../services/api';
+import { getDocumentStorage } from '../../core/services/storage';
 
 // @ts-ignore
 const api = client.api;
@@ -9,43 +10,48 @@ const mapItem = (item: any) => ({
 });
 
 export async function getDocuments(status: 'active' | 'deleted' = 'active') {
-    const res = await api.documents.$get({ query: { status } });
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(`Failed to fetch documents: ${res.status} ${res.statusText}. ${errorData.message || ''}`);
-    }
-    const data = await res.json();
-    return Array.isArray(data) ? data.map(mapItem) : [];
+    return getDocumentStorage().getDocuments(status);
 }
 
 export async function getDocument(id: string) {
-    const res = await api.documents[':id'].$get({ param: { id } });
-    if (!res.ok) throw new Error('Failed to fetch document');
-    return mapItem(await res.json());
+    return getDocumentStorage().getDocument(id);
+}
+
+export async function getPublicDocument(id: string) {
+    try {
+        const res = await fetch(`/api/documents/public/${id}`);
+        if (res.ok) {
+            const data = await res.json();
+            return mapItem(data);
+        }
+    } catch {
+        // Try fallback
+    }
+
+    const resShares = await fetch(`/api/shares/public/${id}`);
+    if (resShares.ok) {
+        const data = await resShares.json();
+        return mapItem(data);
+    }
+
+    throw new Error('Failed to fetch public document');
 }
 
 export async function createDocument(data: any) {
-    const res = await api.documents.$post({ json: data });
-    if (!res.ok) throw new Error('Failed to create document');
-    return mapItem(await res.json());
+    return getDocumentStorage().createDocument(data);
 }
 
 export async function updateDocument(id: string, data: any) {
-    const res = await api.documents[':id'].$patch({ param: { id }, json: data });
-    if (!res.ok) throw new Error('Failed to update document');
-    return mapItem(await res.json());
+    return getDocumentStorage().updateDocument(id, data);
 }
 
 export async function restoreDocument(id: string) {
-    const res = await api.documents[':id'].restore.$patch({ param: { id } });
-    if (!res.ok) throw new Error('Failed to restore document');
-    return mapItem(await res.json());
+    return getDocumentStorage().restoreDocument(id);
 }
 
 export async function deleteDocument(id: string) {
-    const res = await api.documents[':id'].$delete({ param: { id } });
-    if (!res.ok) throw new Error('Failed to delete document');
-    return await res.json();
+    await getDocumentStorage().deleteDocument(id);
+    return { success: true };
 }
 
 export async function permanentDeleteDocument(id: string) {

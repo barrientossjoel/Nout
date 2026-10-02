@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Search, Calendar, Trash2, LayoutDashboard, FileText, BookOpen, Upload, Loader2, X, MoreVertical, Pencil, Link2, ChevronDown, ChevronRight, Network } from 'lucide-react'
+import { Plus, Search, Calendar, Trash2, LayoutDashboard, FileText, BookOpen, Upload, Loader2, X, MoreVertical, Pencil, Link2, ChevronDown, ChevronRight, Network, Bot } from 'lucide-react'
 import { upload } from '@vercel/blob/client'
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -24,8 +24,9 @@ import { WorkspaceSwitcher } from './workspace-switcher'
 import { RenameDialog } from '../../components/ui/rename-dialog'
 import type { Document, WorkspaceRecord } from "../../../core/types/notes"
 import { useLanguage } from '../../context/LanguageContext'
+import { createDocument } from '../../actions/actions'
 
-export type SidebarView = "search" | "calendar" | "trash" | string // string = documentId
+export type SidebarView = "search" | "calendar" | "trash" | "graph" | "ai" | string // string = documentId
 
 interface SidebarProps {
   currentView: SidebarView
@@ -121,13 +122,7 @@ export function Sidebar({
       if (file.name.endsWith('.txt')) {
         const text = await file.text()
         const title = file.name.replace(/\.[^/.]+$/, '')
-        const docRes = await fetch('/api/documents', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, type: 'text', content: text }),
-        })
-        if (!docRes.ok) throw new Error('Document creation failed')
-        const newDoc = await docRes.json()
+        const newDoc = await createDocument({ title, type: 'text', content: text })
         onUploadedPdf(newDoc.id)
         setIsUploading(false)
         return
@@ -155,13 +150,7 @@ export function Sidebar({
 
       // 2. Create document of type 'pdf'
       const title = file.name.replace(/\.[^/.]+$/, '') // strip extension
-      const docRes = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, type: 'pdf', content: documentUrl }),
-      })
-      if (!docRes.ok) throw new Error('Document creation failed')
-      const newDoc = await docRes.json()
+      const newDoc = await createDocument({ title, type: 'pdf', content: documentUrl })
 
       // 3. Navigate to it (parent handles adding to docs list)
       onUploadedPdf(newDoc.id)
@@ -224,7 +213,15 @@ export function Sidebar({
         >
           <Network className="h-3.5 w-3.5" />
         </Button>
-
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn("h-7 w-7", currentView === "ai" && "text-primary")}
+          onClick={() => setCurrentView("ai")}
+          title="AI Assistant"
+        >
+          <Bot className="h-3.5 w-3.5" />
+        </Button>
         {onCloseMobile && (
           <Button
             variant="ghost"

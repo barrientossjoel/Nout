@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { X, FileText, LayoutDashboard, Calendar, Trash2, Frame, Copy, Plus, Network } from 'lucide-react'
+import { X, FileText, LayoutDashboard, Calendar, Trash2, Frame, Copy, Plus, Network, Bot } from 'lucide-react'
 import { cn } from '../../lib/utils/utils'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { Button } from '../ui/button'
@@ -65,6 +65,7 @@ export function TabBar({ paneId, tabs, activeTabId, previewTabId, documents, onS
                     'calendar': { title: 'Calendar', icon: Calendar },
                     'trash': { title: 'Trash', icon: Trash2 },
                     'graph': { title: 'Graph', icon: Network },
+                    'ai': { title: 'AI Assistant', icon: Bot },
                 }
 
                 const systemTab = SYSTEM_TABS[tabId]

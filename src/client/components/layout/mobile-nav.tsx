@@ -1,5 +1,5 @@
 import React from 'react'
-import { Plus, Menu, LayoutDashboard, Search, Calendar, Settings, Copy, X, FileText, Frame, Trash2, MoreVertical } from 'lucide-react'
+import { Plus, Menu, LayoutDashboard, Search, Calendar, Settings, Copy, X, FileText, Frame, Trash2, MoreVertical, Bot } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu"
 import { Button } from "../ui/button"
 import { cn } from "../../lib/utils/utils"
@@ -148,6 +148,7 @@ export function MobileNav({
                             if (tabId === 'dashboard') { title = "Dashboard"; Icon = LayoutDashboard }
                             else if (tabId === 'calendar') { title = "Calendar"; Icon = Calendar }
                             else if (tabId === 'trash') { title = "Trash"; Icon = Trash2 }
+                            else if (tabId === 'ai') { title = "AI Assistant"; Icon = Bot }
 
                             return (
                                 <div

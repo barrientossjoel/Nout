@@ -1,4 +1,4 @@
-import { Plus, MoreHorizontal, Trash2, Edit2, Layers, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, Edit2, Layers, Settings as SettingsIcon, LogOut, Folder } from 'lucide-react';
 import { Button } from "../ui/button";
 import {
     DropdownMenu,
@@ -193,20 +193,35 @@ export function WorkspaceSwitcher({
                         <span className="text-sm">New Workspace</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <div className="px-2 py-1.5 flex flex-col gap-1 items-start">
-                        <span className="text-xs text-muted-foreground font-medium truncate w-full">{user?.name}</span>
-                        <span className="text-[10px] text-muted-foreground/70 truncate w-full">{user?.email}</span>
-                    </div>
-                    <DropdownMenuItem
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            logout();
-                        }}
-                        className="gap-2 px-2 py-1.5 cursor-pointer text-destructive focus:bg-destructive focus:text-destructive-foreground"
+                    <DropdownMenuItem 
+                        onClick={() => {
+                            window.history.pushState({}, '', '/welcome');
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                        }} 
+                        className="gap-2 px-2 py-1.5 cursor-pointer text-xs text-muted-foreground hover:text-foreground"
                     >
-                        <LogOut className="h-4 w-4" />
-                        <span className="text-sm">Log out</span>
+                        <Folder className="h-4 w-4" />
+                        <span>Abrir pantalla de inicio</span>
                     </DropdownMenuItem>
+                    {user && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <div className="px-2 py-1.5 flex flex-col gap-1 items-start">
+                                <span className="text-xs text-muted-foreground font-medium truncate w-full">{user.name}</span>
+                                <span className="text-[10px] text-muted-foreground/70 truncate w-full">{user.email}</span>
+                            </div>
+                            <DropdownMenuItem
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    logout();
+                                }}
+                                className="gap-2 px-2 py-1.5 cursor-pointer text-destructive focus:bg-destructive focus:text-destructive-foreground"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                <span className="text-sm">Log out</span>
+                            </DropdownMenuItem>
+                        </>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
 

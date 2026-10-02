@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { isTauri } from '../../../core/utils/platform';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,7 +17,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!user) {
+  // En Tauri nunca redirigir a /login por defecto
+  if (!user && !isTauri()) {
     window.location.href = '/login';
     return null;
   }

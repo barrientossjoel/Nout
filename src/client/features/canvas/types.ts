@@ -33,6 +33,18 @@ export interface Camera {
     zoom: number
 }
 
+export interface RemoteCursor {
+    clientId: number
+    x: number
+    y: number
+    user: {
+        name: string
+        color: string
+        avatar?: string
+    }
+    lastActive: number
+}
+
 export interface CanvasViewProps {
     document: Document
     documents?: Document[]
@@ -42,6 +54,7 @@ export interface CanvasViewProps {
     showTabs?: boolean
     onToggleTabs?: () => void
     onOpenDocument?: (docId: string) => void
+    readOnly?: boolean
 }
 
 export interface CanvasTableNodeProps {

@@ -98,7 +98,7 @@ export default function Register() {
                 <span className="text-sm font-medium">{t.back}</span>
             </a>
 
-            <div className="w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg relative z-10 my-auto">
+            <div className="w-full max-w-sm p-8 bg-[#121216] border border-white/[0.12] rounded-xl shadow-2xl relative z-10 my-auto">
                 <div className="flex justify-center mb-8">
                     <div className="flex items-center gap-2.5">
                         <img src="/icon_cropped.png" alt="Closure Logo" className="w-5 h-5 object-contain" />
@@ -143,7 +143,7 @@ export default function Register() {
                             required
                         />
                     </div>
-                    <Button type="submit" className="w-full bg-white/90 text-black hover:bg-white rounded-[6px] transition-colors mt-2">
+                    <Button type="submit" className="w-full bg-white/90 text-black hover:bg-white rounded-[6px] transition-colors mt-2 h-10 font-medium">
                         {t.signup}
                     </Button>
                 </form>
@@ -153,14 +153,14 @@ export default function Register() {
                         <div className="w-full border-t border-border"></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-card text-muted-foreground">{t.continueWith}</span>
+                        <span className="px-2 bg-[#121216] text-muted-foreground">{t.continueWith}</span>
                     </div>
                 </div>
 
                 <Button
                     type="button"
                     variant="outline"
-                    className="w-full rounded-[6px]"
+                    className="w-full rounded-[6px] h-10 font-medium border-border hover:bg-accent hover:text-accent-foreground"
                     onClick={handleGoogleLogin}
                 >
                     <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">

@@ -182,6 +182,39 @@ documentsRouter.delete('/trash/empty', requireAuth, async (c) => {
     return c.json({ message: `Trash emptied, ${result.length} items removed` });
 });
 
+// Get public document for shared links (no auth required)
+documentsRouter.get('/public/:id', async (c) => {
+    const id = c.req.param('id');
+    const db = getDb();
+
+    const doc = await db
+        .select({
+            id: documents.id,
+            userId: documents.userId,
+            title: documents.title,
+            content: documents.content,
+            type: documents.type,
+            status: documents.status,
+            tags: documents.tags,
+            createdAt: documents.createdAt,
+            updatedAt: documents.updatedAt,
+        })
+        .from(documents)
+        .where(
+            and(
+                eq(documents.id, id),
+                eq(documents.status, 'active')
+            )
+        )
+        .get();
+
+    if (!doc) {
+        return c.json({ error: 'Document not found' }, 404);
+    }
+
+    return c.json(doc);
+});
+
 // Get specific document
 documentsRouter.get('/:id', requireAuth, async (c) => {
     const id = c.req.param('id');
@@ -209,6 +242,19 @@ documentsRouter.get('/:id', requireAuth, async (c) => {
         )
         .get();
 
-    if (!doc) return c.json({ error: 'Not found' }, 404);
-    return c.json(doc.doc);
+    if (doc) return c.json(doc.doc);
+
+    // If not directly owned or emailed, check if the active document exists for shared link viewing
+    const publicDoc = await db
+        .select()
+        .from(documents)
+        .where(and(eq(documents.id, id), eq(documents.status, 'active')))
+        .get();
+
+    if (publicDoc) {
+        return c.json(publicDoc);
+    }
+
+    return c.json({ error: 'Not found' }, 404);
 });
+

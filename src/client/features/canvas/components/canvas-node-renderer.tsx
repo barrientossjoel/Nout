@@ -122,7 +122,74 @@ const ArrowNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.Re
     );
 };
 
-export const MemoizedCanvasNode = React.memo(({ node, envRef, triggers }: CanvasNodeRendererProps) => {
+/** Precise equality comparison for 200+ FPS rendering: skips diffing nodes that have not changed */
+const areNodesEqual = (prev: CanvasNodeRendererProps, next: CanvasNodeRendererProps): boolean => {
+    const pt = prev.triggers;
+    const nt = next.triggers;
+    if (
+        pt.isSelected !== nt.isSelected ||
+        pt.isOnlySelection !== nt.isOnlySelection ||
+        pt.isSelectionCandidate !== nt.isSelectionCandidate ||
+        pt.isSnapTarget !== nt.isSnapTarget ||
+        pt.isDragged !== nt.isDragged ||
+        pt.isEditing !== nt.isEditing ||
+        pt.isResizing !== nt.isResizing ||
+        pt.isCreatingArrow !== nt.isCreatingArrow ||
+        pt.portalDoc !== nt.portalDoc
+    ) {
+        return false;
+    }
+
+    const pn = prev.node;
+    const nn = next.node;
+    if (pn === nn) return true;
+
+    if (
+        pn.id !== nn.id ||
+        pn.type !== nn.type ||
+        pn.x !== nn.x ||
+        pn.y !== nn.y ||
+        pn.width !== nn.width ||
+        pn.height !== nn.height ||
+        pn.content !== nn.content ||
+        pn.shapeType !== nn.shapeType ||
+        pn.strokeColor !== nn.strokeColor ||
+        pn.strokeWidth !== nn.strokeWidth ||
+        pn.startNodeId !== nn.startNodeId ||
+        pn.endNodeId !== nn.endNodeId ||
+        pn.startOffset?.x !== nn.startOffset?.x ||
+        pn.startOffset?.y !== nn.startOffset?.y ||
+        pn.endOffset?.x !== nn.endOffset?.x ||
+        pn.endOffset?.y !== nn.endOffset?.y
+    ) {
+        return false;
+    }
+
+    if (pn.points !== nn.points) {
+        if (!pn.points || !nn.points) return false;
+        if (
+            pn.points.start?.x !== nn.points.start?.x ||
+            pn.points.start?.y !== nn.points.start?.y ||
+            pn.points.end?.x !== nn.points.end?.x ||
+            pn.points.end?.y !== nn.points.end?.y ||
+            pn.points.control?.x !== nn.points.control?.x ||
+            pn.points.control?.y !== nn.points.control?.y ||
+            pn.points.control2?.x !== nn.points.control2?.x ||
+            pn.points.control2?.y !== nn.points.control2?.y
+        ) {
+            return false;
+        }
+    }
+
+    if (pn.path !== nn.path) {
+        if (!pn.path || !nn.path) return false;
+        if (pn.path.length !== nn.path.length) return false;
+    }
+
+    return true;
+};
+
+const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps) => {
     const env = envRef.current!;
 
     return (
@@ -475,6 +542,7 @@ export const MemoizedCanvasNode = React.memo(({ node, envRef, triggers }: Canvas
             ))}
         </div>
     )
-});
+}
 
+export const MemoizedCanvasNode = React.memo(CanvasNodeRenderer, areNodesEqual);
 MemoizedCanvasNode.displayName = 'MemoizedCanvasNode';

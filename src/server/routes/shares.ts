@@ -15,6 +15,39 @@ const shareSchema = z.object({
 
 // DOCUMENT SHARES
 
+// Get public document for shared links (no auth required)
+sharesRouter.get('/public/:id', async (c) => {
+    const id = c.req.param('id');
+    const db = getDb();
+
+    const doc = await db
+        .select({
+            id: documents.id,
+            userId: documents.userId,
+            title: documents.title,
+            content: documents.content,
+            type: documents.type,
+            status: documents.status,
+            tags: documents.tags,
+            createdAt: documents.createdAt,
+            updatedAt: documents.updatedAt,
+        })
+        .from(documents)
+        .where(
+            and(
+                eq(documents.id, id),
+                eq(documents.status, 'active')
+            )
+        )
+        .get();
+
+    if (!doc) {
+        return c.json({ error: 'Document not found' }, 404);
+    }
+
+    return c.json(doc);
+});
+
 // Get all shares for a document
 sharesRouter.get('/document/:id', requireAuth, async (c) => {
     const documentId = c.req.param('id');

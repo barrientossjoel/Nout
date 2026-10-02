@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { CanvasNode, Camera } from '../types'
 import { calculateBezierControls, getBestDynamicEnd, generateId, toCanvasCoords, sideToPoint, offsetToSide, arrowBounds, shouldEraseNode, updateConnectedArrow, rotateControlPoints } from '../utils/canvas-geometry'
 import { useDragInertia } from '../../../hooks/useDragInertia'
@@ -23,7 +23,26 @@ export function useCanvasInteraction({
     const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
     const [resizingNodeId, setResizingNodeId] = useState<string | null>(null)
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-    const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 })
+    const lastMousePosRef = useRef({ x: 0, y: 0 })
+    const cachedRectRef = useRef<DOMRect | null>(null)
+
+    const getContainerRect = useCallback(() => {
+        if (!cachedRectRef.current && containerRef.current) {
+            cachedRectRef.current = containerRef.current.getBoundingClientRect()
+        }
+        return cachedRectRef.current
+    }, [containerRef])
+
+    useEffect(() => {
+        const invalidate = () => { cachedRectRef.current = null }
+        window.addEventListener('resize', invalidate, { passive: true })
+        window.addEventListener('scroll', invalidate, { passive: true })
+        return () => {
+            window.removeEventListener('resize', invalidate)
+            window.removeEventListener('scroll', invalidate)
+        }
+    }, [])
+
     const [selection, setSelection] = useState<Set<string>>(new Set())
     const [isSpacePressed, setIsSpacePressed] = useState(false)
     const [hasMoved, setHasMoved] = useState(false)
@@ -142,7 +161,7 @@ export function useCanvasInteraction({
         setDraggedNodeId(node.id)
         setHasMoved(false)
 
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect) return
         const { x: mouseCanvasX, y: mouseCanvasY } = toCanvasCoords(e.clientX, e.clientY, rect, camera)
 
@@ -151,18 +170,18 @@ export function useCanvasInteraction({
             y: mouseCanvasY - node.y
         })
         dragStartPosition.current = { x: e.clientX, y: e.clientY }
-        setLastMousePos({ x: e.clientX, y: e.clientY })
-    }, [selection, nodes, camera, containerRef, getGroupNodes, moveToFront, onOpenDocument]);
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
+    }, [selection, nodes, camera, getContainerRect, getGroupNodes, moveToFront, onOpenDocument]);
 
     const handlePanningMode = useCallback((e: React.MouseEvent, setCamera: (c: any) => void) => {
-        const dx = e.clientX - lastMousePos.x
-        const dy = e.clientY - lastMousePos.y
+        const dx = e.clientX - lastMousePosRef.current.x
+        const dy = e.clientY - lastMousePosRef.current.y
         setCamera((prev: any) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }))
-        setLastMousePos({ x: e.clientX, y: e.clientY })
-    }, [lastMousePos]);
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
+    }, []);
 
     const handleSelectionBoxMode = useCallback((e: React.MouseEvent) => {
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect || !selectionBox) return
         const x = (e.clientX - rect.left - camera.x) / camera.zoom
         const y = (e.clientY - rect.top - camera.y) / camera.zoom
@@ -187,10 +206,10 @@ export function useCanvasInteraction({
             }
         })
         setSelectionCandidates(candidates)
-    }, [camera, containerRef, nodes, selectionBox]);
+    }, [camera, getContainerRect, nodes, selectionBox]);
 
     const handleEraserModeMouseMove = useCallback((e: React.MouseEvent) => {
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect) return
         const { x, y } = toCanvasCoords(e.clientX, e.clientY, rect, camera)
 
@@ -199,18 +218,18 @@ export function useCanvasInteraction({
             if (newNodes.length !== prev.length) setSelection(new Set());
             return newNodes;
         });
-    }, [camera, containerRef, setNodes]);
+    }, [camera, getContainerRect, setNodes]);
 
     const handleDrawingModeMouseMove = useCallback((e: React.MouseEvent) => {
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect) return
         const pt = toCanvasCoords(e.clientX, e.clientY, rect, camera)
         setCurrentPath(prev => prev ? [...prev, pt] : null)
-    }, [camera, containerRef]);
+    }, [camera, getContainerRect]);
 
     const handleDraggedHandleMode = useCallback((e: React.MouseEvent) => {
         if (!draggedHandle) return
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect) return
         const { x: mouseX, y: mouseY } = toCanvasCoords(e.clientX, e.clientY, rect, camera)
 
@@ -329,8 +348,8 @@ export function useCanvasInteraction({
         setHasMoved(true)
         applyInertiaMovement(e.movementX)
 
-        const dx = (e.clientX - lastMousePos.x) / camera.zoom
-        const dy = (e.clientY - lastMousePos.y) / camera.zoom
+        const dx = (e.clientX - lastMousePosRef.current.x) / camera.zoom
+        const dy = (e.clientY - lastMousePosRef.current.y) / camera.zoom
         if (dx === 0 && dy === 0) return
 
         setNodes(prev => {
@@ -372,12 +391,12 @@ export function useCanvasInteraction({
                 return n
             })
         })
-        setLastMousePos({ x: e.clientX, y: e.clientY })
-    }, [camera, draggedNodeId, lastMousePos, selection, setNodes]);
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
+    }, [camera, draggedNodeId, selection, setNodes]);
 
     const handleResizingNodeMode = useCallback((e: React.MouseEvent) => {
         if (!resizingNodeId) return
-        const rect = containerRef.current?.getBoundingClientRect()
+        const rect = getContainerRect()
         if (!rect) return
         const node = nodes.find(n => n.id === resizingNodeId)
         if (!node) return
@@ -428,7 +447,7 @@ export function useCanvasInteraction({
                 return n
             })
         })
-    }, [camera, containerRef, nodes, resizingNodeId, setNodes]);
+    }, [camera, getContainerRect, nodes, resizingNodeId, setNodes]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent, isPanning: boolean, camera: Camera, setCamera: (c: any) => void) => {
         if (isPanning) {
@@ -442,7 +461,7 @@ export function useCanvasInteraction({
         } else if (draggedHandle) {
             handleDraggedHandleMode(e)
         } else if (isCreatingArrow && arrowStart) {
-            const rect = containerRef.current?.getBoundingClientRect()
+            const rect = getContainerRect()
             if (rect) setArrowEndPreview(toCanvasCoords(e.clientX, e.clientY, rect, camera))
         } else if (draggedNodeId) {
             handleDraggedNodeMode(e)
@@ -451,7 +470,7 @@ export function useCanvasInteraction({
         }
     }, [
         selectionBox, isEraserMode, isDrawingMode, currentPath, draggedHandle,
-        isCreatingArrow, arrowStart, draggedNodeId, resizingNodeId, camera, containerRef,
+        isCreatingArrow, arrowStart, draggedNodeId, resizingNodeId, camera, getContainerRect,
         handlePanningMode, handleSelectionBoxMode, handleEraserModeMouseMove,
         handleDrawingModeMouseMove, handleDraggedHandleMode, handleDraggedNodeMode,
         handleResizingNodeMode
@@ -484,7 +503,7 @@ export function useCanvasInteraction({
         }
 
         if (isCreatingArrow && arrowStart && arrowStartNodeId) {
-            const rect = containerRef.current?.getBoundingClientRect()
+            const rect = getContainerRect()
             if (rect) {
                 const { x: mouseX, y: mouseY } = toCanvasCoords(e.clientX, e.clientY, rect, camera)
                 const dist = Math.hypot(mouseX - arrowStart.x, mouseY - arrowStart.y)
@@ -585,7 +604,7 @@ export function useCanvasInteraction({
     const handleMouseDown = useCallback((e: React.MouseEvent, isPanning: boolean, setIsPanning: (p: boolean) => void) => {
         if (isSpacePressed || e.button === 1) {
             setIsPanning(true)
-            setLastMousePos({ x: e.clientX, y: e.clientY })
+            lastMousePosRef.current = { x: e.clientX, y: e.clientY }
             return
         }
         if (e.button === 0) {
@@ -638,35 +657,35 @@ export function useCanvasInteraction({
         if (e.touches.length === 2) {
             setIsPanning(true)
             const touch1 = e.touches[0]; const touch2 = e.touches[1]
-            setLastMousePos({ x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 })
+            lastMousePosRef.current = { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }
         } else if (e.touches.length === 1 && e.target === containerRef.current) {
             const touch = e.touches[0]
             if (!e.shiftKey) setSelection(new Set())
             setEditingId(null)
-            const rect = containerRef.current?.getBoundingClientRect()
+            const rect = getContainerRect()
             if (!rect) return
             const { x, y } = toCanvasCoords(touch.clientX, touch.clientY, rect, camera)
             setSelectionBox({ start: { x, y }, end: { x, y } })
         }
-    }, [camera, containerRef]);
+    }, [camera, containerRef, getContainerRect]);
 
     const handleTouchMove = useCallback((e: React.TouchEvent, isPanning: boolean, camera: Camera, setCamera: (c: any) => void) => {
         if (isPanning && e.touches.length === 2) {
             const touch1 = e.touches[0]; const touch2 = e.touches[1]
             const currentPos = { x: (touch1.clientX + touch2.clientX) / 2, y: (touch1.clientY + touch2.clientY) / 2 }
-            const dx = currentPos.x - lastMousePos.x
-            const dy = currentPos.y - lastMousePos.y
+            const dx = currentPos.x - lastMousePosRef.current.x
+            const dy = currentPos.y - lastMousePosRef.current.y
             setCamera((prev: any) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }))
-            setLastMousePos(currentPos)
+            lastMousePosRef.current = currentPos
         } else if (selectionBox && e.touches.length === 1) {
             const touch = e.touches[0]
-            const rect = containerRef.current?.getBoundingClientRect()
+            const rect = getContainerRect()
             if (!rect) return
             const x = (touch.clientX - rect.left - camera.x) / camera.zoom
             const y = (touch.clientY - rect.top - camera.y) / camera.zoom
             setSelectionBox(prev => prev ? { ...prev, end: { x, y } } : null)
         }
-    }, [lastMousePos, selectionBox, containerRef]);
+    }, [selectionBox, getContainerRect]);
 
     const handleTouchEnd = useCallback((setIsPanning: (p: boolean) => void) => {
         setIsPanning(false)
@@ -726,7 +745,7 @@ export function useCanvasInteraction({
         draggedNodeId, setDraggedNodeId,
         resizingNodeId, setResizingNodeId,
         dragOffset, setDragOffset,
-        lastMousePos, setLastMousePos,
+        lastMousePosRef,
         selection, setSelection,
         isSpacePressed, setIsSpacePressed,
         hasMoved, setHasMoved,

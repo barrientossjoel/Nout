@@ -39,6 +39,8 @@ import { CanvasToolbar } from './components/canvas-toolbar'
 import { useCanvasSync } from './hooks/use-canvas-sync'
 import { useCanvasCamera } from './hooks/use-canvas-camera'
 import { useCanvasInteraction } from './hooks/use-canvas-interaction'
+import { MultiplayerCursors, CollaboratorAvatarStack, useLocalCursorBroadcast } from '../collaboration'
+import { useAuth } from '../../context/AuthContext'
 import { calculateBezierControls, getArrowMidpoint, getBestDynamicEnd, shortenLineEnd, ARROW_STROKE_PAD, generateId, toCanvasCoords } from './utils/canvas-geometry'
 import { useKeyboardShortcuts, matchesShortcut } from '../../context/KeyboardShortcutsContext'
 
@@ -71,7 +73,8 @@ export function CanvasView({
     onToggleSidebar,
     showTabs,
     onToggleTabs,
-    onOpenDocument
+    onOpenDocument,
+    readOnly = false,
 }: CanvasViewProps) {
     // 1. Core State & Refs
     const containerRef = useRef<HTMLDivElement>(null)
@@ -88,6 +91,7 @@ export function CanvasView({
     }, [doc.id]); // Only re-parse if doc id changes to avoid reset
 
     const { nodes, setNodes, ydoc, provider, ymap } = useCanvasSync(doc.id, initialNodes);
+    const { user } = useAuth();
 
     const initialCamera = useMemo(() => {
         try {
@@ -117,10 +121,55 @@ export function CanvasView({
         shapeDrawingMode, setShapeDrawingMode, activeTool, setActiveTool
     } = useCanvasInteraction({ nodes, setNodes, camera, containerRef, wrapperRef, onOpenDocument });
 
+    const documentsMap = useMemo(() => new Map(documents.map(d => [d.id, d])), [documents]);
+
+    const {
+        onPointerMove: handleCursorPointerMove,
+        onPointerLeave: handleCursorPointerLeave,
+    } = useLocalCursorBroadcast({
+        provider,
+        user,
+        camera,
+        containerRef,
+    });
+
     const handleWheel = (e: React.WheelEvent) => rawHandleWheel(e, containerRef)
-    const handleMouseDown = (e: React.MouseEvent) => rawHandleMouseDown(e, isPanning, setIsPanning)
-    const handleMouseMove = (e: React.MouseEvent) => rawHandleMouseMove(e, isPanning, camera, setCamera)
-    const handleMouseUp = (e: React.MouseEvent) => rawHandleMouseUp(e, setIsPanning)
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (readOnly) {
+            setIsPanning(true)
+            return
+        }
+        rawHandleMouseDown(e, isPanning, setIsPanning)
+    }
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (readOnly) {
+            if (isPanning) {
+                setCamera(prev => ({
+                    ...prev,
+                    x: prev.x + e.movementX,
+                    y: prev.y + e.movementY
+                }))
+            }
+            handleCursorPointerMove(e)
+            return
+        }
+        rawHandleMouseMove(e, isPanning, camera, setCamera)
+        handleCursorPointerMove(e)
+    }
+    const handleMouseUp = (e: React.MouseEvent) => {
+        if (readOnly) {
+            setIsPanning(false)
+            return
+        }
+        rawHandleMouseUp(e, setIsPanning)
+    }
+    const handleMouseLeave = (e: React.MouseEvent) => {
+        if (readOnly) {
+            setIsPanning(false)
+        }
+        rawHandleMouseUp(e, setIsPanning)
+        handleCursorPointerLeave()
+    }
     const handleTouchStart = (e: React.TouchEvent) => rawHandleTouchStart(e, isPanning, setIsPanning)
     const handleTouchMove = (e: React.TouchEvent) => rawHandleTouchMove(e, isPanning, camera, setCamera)
     const handleTouchEnd = () => rawHandleTouchEnd(setIsPanning)
@@ -317,6 +366,7 @@ export function CanvasView({
     }, [editingId, doubleClickPos, editingCaretOffset, focusTarget])
 
     useEffect(() => {
+        if (readOnly) return
         const timer = setTimeout(() => {
             const contentObj = { nodes, camera }
             const contentString = JSON.stringify(contentObj)
@@ -325,13 +375,14 @@ export function CanvasView({
             }
         }, 1000)
         return () => clearTimeout(timer)
-    }, [nodes, camera, doc, onUpdateDocument])
+    }, [nodes, camera, doc, onUpdateDocument, readOnly])
 
     const { shortcuts } = useKeyboardShortcuts()
     const shortcutsRef = useRef(shortcuts)
     useEffect(() => { shortcutsRef.current = shortcuts }, [shortcuts])
 
     useEffect(() => {
+        if (readOnly) return
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement
             if (matchesShortcut(e, shortcutsRef.current.canvasPan) && !isInputFocused(target)) setIsSpacePressed(true)
@@ -474,7 +525,7 @@ export function CanvasView({
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
                 onContextMenu={handleContextMenu}
                 onPaste={handlePaste}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
@@ -491,8 +542,9 @@ export function CanvasView({
             >
                 <div
                     style={{
-                        transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
-                        transformOrigin: '0 0'
+                        transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`,
+                        transformOrigin: '0 0',
+                        willChange: isPanning ? 'transform' : 'auto',
                     }}
                 >
 
@@ -503,7 +555,7 @@ export function CanvasView({
                             if (node.content.startsWith('{')) {
                                 try { docId = JSON.parse(node.content).id; } catch (e) { }
                             }
-                            portalDoc = documents.find((d: any) => d.id === docId);
+                            portalDoc = documentsMap.get(docId);
                         }
 
                         return (
@@ -550,6 +602,9 @@ export function CanvasView({
                         />
                     )}
                 </div>
+
+                {/* Multiplayer Cursors (Figma-style) */}
+                <MultiplayerCursors provider={provider} camera={camera} />
             </div>
 
             {/* Arrow Preview Layer */}
@@ -594,30 +649,34 @@ export function CanvasView({
                 )
             }
 
-            <CanvasToolbar
-                isMobile={isMobile}
-                activeTool={activeTool}
-                setActiveTool={setActiveTool}
-                pencilColor={pencilColor}
-                setPencilColor={setPencilColor}
-                pencilWidth={pencilWidth}
-                setPencilWidth={setPencilWidth}
-                selectionSize={selection.size}
-                onAddNote={() => { addNote(); setActiveTool('select'); }}
-                onAddTable={() => { addTable(); setActiveTool('select'); }}
-                onAddShape={(shape) => addShape(shape)}
-                onInitiateAddImage={() => { initiateAddImage(); setActiveTool('select'); }}
-                onImportDocument={() => setIsImportOpen(true)}
-                onDeleteSelection={() => {
-                    if (selection.size > 0) {
-                        setNodes(prev => prev.filter(n => !selection.has(n.id)))
-                        setSelection(new Set())
-                    }
-                }}
-            />
+            {!readOnly && (
+                <CanvasToolbar
+                    isMobile={isMobile}
+                    activeTool={activeTool}
+                    setActiveTool={setActiveTool}
+                    pencilColor={pencilColor}
+                    setPencilColor={setPencilColor}
+                    pencilWidth={pencilWidth}
+                    setPencilWidth={setPencilWidth}
+                    selectionSize={selection.size}
+                    onAddNote={() => { addNote(); setActiveTool('select'); }}
+                    onAddTable={() => { addTable(); setActiveTool('select'); }}
+                    onAddShape={(shape) => addShape(shape)}
+                    onInitiateAddImage={() => { initiateAddImage(); setActiveTool('select'); }}
+                    onImportDocument={() => setIsImportOpen(true)}
+                    onDeleteSelection={() => {
+                        if (selection.size > 0) {
+                            setNodes(prev => prev.filter(n => !selection.has(n.id)))
+                            setSelection(new Set())
+                        }
+                    }}
+                />
+            )}
             {/* Toolbar (Top Right) */}
-            <div className="absolute top-0 right-4 z-50 pointer-events-auto flex items-center gap-1 h-16">
-                {!isMobile && (
+            <div className="absolute top-0 right-4 z-50 pointer-events-auto flex items-center gap-1.5 h-16">
+                {/* Active Collaborators Presence (Figma-style avatars - isolated render boundary) */}
+                <CollaboratorAvatarStack provider={provider} />
+                {!readOnly && !isMobile && (
                     <>
                         {onToggleTabs && (
                             <Button
@@ -648,55 +707,59 @@ export function CanvasView({
                     </>
                 )}
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9">
-                            <MoreVertical className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                        {isMobile && (
-                            <div className="p-2 border-b border-border/50">
-                                <DropdownMenuItem onClick={() => setLocalShowNotes(!localShowNotes)} className="cursor-pointer">
-                                    <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
-                                    <span>{localShowNotes ? "Close Notes" : "Open Notes"}</span>
+                {!readOnly && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            {isMobile && (
+                                <div className="p-2 border-b border-border/50">
+                                    <DropdownMenuItem onClick={() => setLocalShowNotes(!localShowNotes)} className="cursor-pointer">
+                                        <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                                        <span>{localShowNotes ? "Close Notes" : "Open Notes"}</span>
+                                    </DropdownMenuItem>
+                                </div>
+                            )}
+                            <div className="p-2">
+                                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                                    <Share2 className="mr-2 h-4 w-4" />
+                                    <span>Share</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={toggleFullscreen}>
+                                    {isFullscreen ? (
+                                        <>
+                                            <Minimize className="h-4 w-4 mr-2" />
+                                            <span>Exit Fullscreen</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Maximize className="h-4 w-4 mr-2" />
+                                            <span>Enter Fullscreen</span>
+                                        </>
+                                    )}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })}>
+                                    <Move className="h-4 w-4 mr-2" />
+                                    <span>Reset View</span>
                                 </DropdownMenuItem>
                             </div>
-                        )}
-                        <div className="p-2">
-                            <DropdownMenuItem onClick={() => setShareOpen(true)}>
-                                <Share2 className="mr-2 h-4 w-4" />
-                                <span>Share</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={toggleFullscreen}>
-                                {isFullscreen ? (
-                                    <>
-                                        <Minimize className="h-4 w-4 mr-2" />
-                                        <span>Exit Fullscreen</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Maximize className="h-4 w-4 mr-2" />
-                                        <span>Enter Fullscreen</span>
-                                    </>
-                                )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })}>
-                                <Move className="h-4 w-4 mr-2" />
-                                <span>Reset View</span>
-                            </DropdownMenuItem>
-                        </div>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
 
-            <ShareDialog
-                elementId={doc.id}
-                elementType="canvas"
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-            />
+            {!readOnly && (
+                <ShareDialog
+                    elementId={doc.id}
+                    elementType="canvas"
+                    open={shareOpen}
+                    onOpenChange={setShareOpen}
+                />
+            )}
 
             <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2 z-50">
                 {isMobile ? (

@@ -1,116 +1,93 @@
-import { useState, useEffect, useMemo } from 'react'
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-import YPartyKitProvider from 'y-partykit/provider'
-import { IndexeddbPersistence } from 'y-indexeddb'
-import { CanvasNode } from '../types'
-
-const canvasProviderCache = new Map<string, { ydoc: Y.Doc, provider: any, idbProvider: IndexeddbPersistence, refCount: number, timeoutId?: ReturnType<typeof setTimeout> }>();
-
-function getOrCreateCanvasProvider(docId: string | undefined | null) {
-    if (!docId) return null;
-    let cached = canvasProviderCache.get(docId);
-    if (!cached) {
-        const ydoc = new Y.Doc();
-        const partyKitHost = import.meta.env.VITE_PARTYKIT_HOST;
-        let provider;
-        
-        if (import.meta.env.DEV) {
-            const host = window.location.host;
-            provider = new WebsocketProvider(`ws://${host}/ws`, `board-${docId}`, ydoc);
-        } else if (partyKitHost) {
-            let host = partyKitHost.replace(/^https?:\/\//, '');
-            provider = new YPartyKitProvider(host, `board-${docId}`, ydoc);
-        } else {
-            let host = window.location.hostname;
-            provider = new YPartyKitProvider(host, `board-${docId}`, ydoc);
-        }
-        const idbProvider = new IndexeddbPersistence(`board-${docId}`, ydoc);
-        cached = { ydoc, provider, idbProvider, refCount: 0 };
-        canvasProviderCache.set(docId, cached);
-    }
-    return cached;
-}
+import { useState, useEffect, useMemo, useRef } from 'react'
+import type { CanvasNode } from '../types'
+import { acquireCollabSession, type CollabSession } from '../../collaboration'
 
 export function useCanvasSync(docId: string | undefined, initialNodes: CanvasNode[]) {
-    const [nodes, setNodes] = useState<CanvasNode[]>(initialNodes);
-    
-    const collaboration = useMemo(() => getOrCreateCanvasProvider(docId), [docId]);
-    const ydoc = collaboration?.ydoc || new Y.Doc();
-    const provider = collaboration?.provider;
-    const ymap = useMemo(() => ydoc.getMap<any>('nodes'), [ydoc]);
+    const [nodes, setNodes] = useState<CanvasNode[]>(initialNodes)
+    const sessionRef = useRef<CollabSession | null>(null)
 
+    const session = useMemo(() => {
+        if (!docId) return null
+        return acquireCollabSession(`board-${docId}`)
+    }, [docId])
+
+    sessionRef.current = session
+    const ydoc = session?.ydoc
+    const provider = session?.provider
+    const ymap = useMemo(() => ydoc?.getMap<CanvasNode>('nodes'), [ydoc])
+
+    // Session reference-count teardown
     useEffect(() => {
-        if (!collaboration || !docId) return;
-        collaboration.refCount++;
-        if (collaboration.timeoutId) {
-            clearTimeout(collaboration.timeoutId);
-            collaboration.timeoutId = undefined;
-        }
         return () => {
-            collaboration.refCount--;
-            if (collaboration.refCount === 0) {
-                collaboration.timeoutId = setTimeout(() => {
-                    if (collaboration.refCount === 0) {
-                        collaboration.provider?.destroy();
-                        collaboration.idbProvider?.destroy();
-                        collaboration.ydoc?.destroy();
-                        canvasProviderCache.delete(docId);
-                    }
-                }, 250);
-            }
-        };
-    }, [collaboration, docId]);
+            sessionRef.current?.release()
+        }
+    }, [docId])
 
+    // Initial sync flag to prevent local empty array from clearing remote data
+    const hasSyncedRef = useRef(false)
+
+    // Sync local changes to Yjs map
     useEffect(() => {
-        // Sync local changes to Yjs map
+        if (!ydoc || !ymap) return
+        if (!hasSyncedRef.current && nodes.length === 0) return
+
         ydoc.transact(() => {
-            const currentIds = new Set(nodes.map(n => n.id));
+            const currentIds = new Set(nodes.map(n => n.id))
             nodes.forEach(n => {
-                const existing = ymap.get(n.id);
+                const existing = ymap.get(n.id)
                 if (JSON.stringify(existing) !== JSON.stringify(n)) {
-                    ymap.set(n.id, n);
+                    ymap.set(n.id, n)
                 }
-            });
+            })
             for (const key of Array.from(ymap.keys())) {
                 if (!currentIds.has(key)) {
-                    ymap.delete(key);
+                    ymap.delete(key)
                 }
             }
-        }, 'local');
-    }, [nodes, ydoc, ymap]);
+        }, 'local')
+    }, [nodes, ydoc, ymap])
 
+    // Observe incoming remote Yjs mutations
     useEffect(() => {
-        const observer = (event: Y.YMapEvent<any>, transaction: Y.Transaction) => {
-            if (transaction.origin === 'local') return;
+        if (!ymap || !provider) return
+
+        const observer = (event: any, tr: any) => {
+            if (tr.origin === 'local') return
 
             setNodes(prev => {
-                const newNodesMap = new Map(prev.map(n => [n.id, n]));
-                event.changes.keys.forEach((change, key) => {
-                    if (change.action === 'add' || change.action === 'update') {
-                        newNodesMap.set(key, ymap.get(key));
-                    } else if (change.action === 'delete') {
-                        newNodesMap.delete(key);
+                const map = new Map(prev.map(n => [n.id, n]))
+                event.changes.keys.forEach((change: any, key: string) => {
+                    if (change.action === 'delete') {
+                        map.delete(key)
+                    } else {
+                        const val = ymap.get(key)
+                        if (val) map.set(key, val)
                     }
-                });
-                return Array.from(newNodesMap.values());
-            });
-        };
+                })
+                return Array.from(map.values())
+            })
+        }
 
-        ymap.observe(observer);
+        ymap.observe(observer)
 
         const handleSync = (isSynced: boolean) => {
-            if (isSynced && ymap.size > 0 && nodes.length <= 1) {
-                setNodes(Array.from(ymap.values()));
+            if (isSynced) {
+                hasSyncedRef.current = true
+                if (ymap.size > 0) setNodes(Array.from(ymap.values()))
             }
-        };
-        provider?.on('sync', handleSync);
+        }
+
+        if (provider.synced) {
+            handleSync(true)
+        } else {
+            provider.on('sync', handleSync)
+        }
 
         return () => {
-            ymap.unobserve(observer);
-            provider?.off('sync', handleSync);
-        };
-    }, [ymap, provider, nodes.length]);
+            ymap.unobserve(observer)
+            provider.off('sync', handleSync)
+        }
+    }, [ymap, provider])
 
-    return { nodes, setNodes, ydoc, provider, ymap };
+    return { nodes, setNodes, ydoc, provider, ymap }
 }

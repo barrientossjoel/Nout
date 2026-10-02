@@ -11,7 +11,7 @@ import {
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw } from "lucide-react"
+import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw, Folder } from "lucide-react"
 import { cn } from "../../lib/utils/utils"
 import { useTheme } from "../theme-provider"
 import { useMediaQuery } from "../../hooks/useMediaQuery"
@@ -21,6 +21,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar"
 import { CollaborationSettings } from "./collaboration-settings"
 import { ShortcutEditorRow } from "./shortcut-editor"
 import { useKeyboardShortcuts, type ShortcutId } from "../../context/KeyboardShortcutsContext"
+import { AiSettings } from "./ai-settings"
+import { pickVaultFolder, saveVaultPath } from "../../../core/services/vault"
+import Login from "../../pages/Login"
 
 interface ShortcutItem {
     label: string
@@ -82,6 +85,25 @@ export function SettingsDialog({
     const isMobile = useMediaQuery('(max-width: 768px)')
     const { shortcuts, setShortcut, resetShortcut, resetAll } = useKeyboardShortcuts()
 
+    const [showLogin, setShowLogin] = React.useState(false);
+    const [vaultPath, setVaultPath] = React.useState(() => {
+        return localStorage.getItem('nout_vault_path') || 'Documentos/Nout Vault';
+    });
+
+    const handleBrowseVault = async () => {
+        const selected = await pickVaultFolder();
+        if (selected) {
+            setVaultPath(selected);
+            saveVaultPath(selected);
+        }
+    };
+
+    const handlePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setVaultPath(val);
+        saveVaultPath(val);
+    };
+
     const normalizedShortcuts = React.useMemo(() => {
         return SHORTCUTS.map(category => ({
             name: t(category.name as any),
@@ -111,6 +133,7 @@ export function SettingsDialog({
             items: [
                 { id: "account", label: t('account') },
                 { id: "appearance", label: t('appearance') },
+                { id: "ai", label: "AI Agents" },
                 { id: "shortcuts", label: t('shortcuts') },
                 { id: "collaboration", label: t('collaboration') as string },
             ]
@@ -211,7 +234,7 @@ export function SettingsDialog({
                             <ChevronLeft className="h-5 w-5" />
                         </Button>
                         <span className="text-[clamp(11px,1.5vw,12px)] font-medium text-muted-foreground truncate">
-                            {t('settings')} <span className="mx-1 sm:mx-2">&gt;</span> <span className="text-foreground capitalize">{isSearching ? t('matchingResults') : t(activeTab as any)}</span>
+                            {t('settings')} <span className="mx-1 sm:mx-2">&gt;</span> <span className="text-foreground capitalize">{isSearching ? t('matchingResults') : (activeTab === 'ai' ? 'AI Agents' : t(activeTab as any))}</span>
                         </span>
                     </div>
 
@@ -221,6 +244,7 @@ export function SettingsDialog({
                             {/* Account Tab Content */}
                             {(!isSearching && activeTab === 'account') && (
                                 <div className="space-y-[clamp(1.5rem,4vw,2.5rem)] animate-in fade-in duration-300">
+                                    {/* Sección Mi Perfil / Cuenta */}
                                     <div>
                                         <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">{t('myProfile')}</h3>
                                         {user ? (
@@ -228,43 +252,109 @@ export function SettingsDialog({
                                                 <div className="flex flex-row items-center gap-[clamp(0.75rem,2vw,1rem)] min-w-0">
                                                     <Avatar className="h-[clamp(2.5rem,5vw,3rem)] w-[clamp(2.5rem,5vw,3rem)] rounded-md border border-border shrink-0">
                                                         {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-                                                        <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{user.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                        <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{user.name?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex flex-col min-w-0">
                                                         <span className="font-semibold text-[clamp(13px,1.5vw,15px)] text-foreground truncate">{user.name}</span>
                                                         <span className="text-[clamp(11px,1.2vw,13px)] text-muted-foreground truncate">{user.email}</span>
                                                     </div>
                                                 </div>
-                                                <Button variant="outline" size="sm" className="hidden sm:flex rounded-md shrink-0">
-                                                    {t('changeName')}
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="rounded-md shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+                                                    onClick={logout}
+                                                >
+                                                    {t('logOut')}
                                                 </Button>
                                             </div>
+                                        ) : showLogin ? (
+                                            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-sm font-medium text-foreground">
+                                                        {language === 'es' ? 'Iniciar sesión para sincronizar' : 'Log in to sync'}
+                                                    </h4>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-xs text-muted-foreground hover:text-foreground h-7 px-2"
+                                                        onClick={() => setShowLogin(false)}
+                                                    >
+                                                        {language === 'es' ? 'Cancelar' : 'Cancel'}
+                                                    </Button>
+                                                </div>
+                                                <Login embedded className="p-0 border-0 bg-transparent shadow-none max-w-none" />
+                                            </div>
                                         ) : (
-                                            <p className="text-sm text-muted-foreground">{t('notLoggedIn')}</p>
+                                            <div className="rounded-lg border border-border bg-card p-4 flex items-center justify-between gap-4">
+                                                <div>
+                                                    <h4 className="text-sm font-medium text-foreground">
+                                                        {language === 'es' ? 'Iniciar sesión para sincronizar' : 'Log in to sync'}
+                                                    </h4>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        {language === 'es' 
+                                                            ? 'Sincroniza tus notas en la nube entre tus dispositivos (opcional).' 
+                                                            : 'Sync your notes across devices (optional).'}
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="shrink-0 text-xs px-4"
+                                                    onClick={() => setShowLogin(true)}
+                                                >
+                                                    {language === 'es' ? 'Iniciar sesión' : 'Log in'}
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
 
-                                    {user && (
-                                        <div>
-                                            <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">{t('login')}</h3>
-                                            <div className="rounded-lg border border-border overflow-hidden bg-card">
-                                                <div className="flex items-center justify-between p-[clamp(0.75rem,2vw,1rem)] gap-4">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-[clamp(13px,1.5vw,14px)] font-medium text-foreground truncate">{t('session')}</span>
-                                                        <span className="text-[clamp(11px,1.2vw,12px)] text-muted-foreground mt-1 truncate">{t('logOutDesc')}</span>
-                                                    </div>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="rounded-md shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
-                                                        onClick={logout}
-                                                    >
-                                                        {t('logOut')}
-                                                    </Button>
-                                                </div>
+                                    {/* Vault / Bóveda Local: Input + botón Cambiar */}
+                                    <div>
+                                        <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">
+                                            {language === 'es' ? 'Bóveda Local' : 'Local Vault'}
+                                        </h3>
+                                        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+                                            <label className="text-xs font-medium text-muted-foreground block">
+                                                {language === 'es' ? 'Carpeta de la Bóveda (Vault)' : 'Vault Folder'}
+                                            </label>
+                                            <div className="flex gap-2 items-center">
+                                                <Input
+                                                    value={vaultPath}
+                                                    onChange={handlePathChange}
+                                                    placeholder="Ruta a la carpeta del vault..."
+                                                    className="font-mono text-xs bg-background border-border"
+                                                />
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="shrink-0 text-xs px-4 h-9"
+                                                    onClick={handleBrowseVault}
+                                                >
+                                                    {language === 'es' ? 'Cambiar' : 'Change'}
+                                                </Button>
+                                            </div>
+                                            <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    {language === 'es' 
+                                                        ? 'Tus notas y datos locales se guardan en esta carpeta.' 
+                                                        : 'Your notes and local data are stored in this folder.'}
+                                                </p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-xs text-muted-foreground hover:text-foreground h-7 px-2 shrink-0"
+                                                    onClick={() => {
+                                                        onOpenChange(false);
+                                                        window.history.pushState({}, '', '/welcome');
+                                                        window.dispatchEvent(new PopStateEvent('popstate'));
+                                                    }}
+                                                >
+                                                    {language === 'es' ? 'Ver pantalla de inicio' : 'Open welcome screen'}
+                                                </Button>
                                             </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             )}
 
@@ -324,6 +414,11 @@ export function SettingsDialog({
                                         </div>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* AI Agent Tab Content */}
+                            {(!isSearching && activeTab === 'ai') && (
+                                <AiSettings />
                             )}
 
                             {/* Shortcuts Content */}
