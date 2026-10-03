@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import NotesApp from '../features/notes/components/notes-app';
 import { useAuth } from '../context/AuthContext';
 import { ProtectedRoute } from '../components/auth/protected-route';
@@ -27,86 +27,19 @@ const RESERVED_ROUTES = new Set([
   'settings',
 ]);
 
-function extractSharedDocumentId(pathname: string): string | null {
+const extractSharedDocumentId = (pathname: string): string | null => {
   const trimmed = pathname.replace(/^\/+|\/+$/g, '');
   if (!trimmed) return null;
 
   if (trimmed.startsWith('share/')) {
-    const id = trimmed.replace(/^share\//, '');
-    return id || null;
+    return trimmed.slice(6) || null;
   }
 
-  const parts = trimmed.split('/');
-  if (parts.length === 1) {
-    const potentialId = parts[0];
-    if (!RESERVED_ROUTES.has(potentialId.toLowerCase())) {
-      return potentialId;
-    }
-  }
+  const [firstPart, ...rest] = trimmed.split('/');
+  return rest.length === 0 && !RESERVED_ROUTES.has(firstPart.toLowerCase()) ? firstPart : null;
+};
 
-  return null;
-}
-
-export function MainRouter() {
-  const [path, setPath] = useState(window.location.pathname);
-  const { user, isLoading } = useAuth();
-  const [vaultReady, setVaultReady] = useState(() => isVaultInitialized());
-
-  useEffect(() => {
-    const handlePopState = () => setPath(window.location.pathname);
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex bg-neutral-900 justify-center items-center h-screen w-full text-white">
-        Loading...
-      </div>
-    );
-  }
-
-  // Handle explicit routes
-  if (path === '/login') return <Login />;
-  if (path === '/register') return <Register />;
-  if (path === '/welcome' || path === '/home') {
-    return (
-      <HomeWelcome
-        onContinue={() => {
-          setVaultReady(true);
-          window.history.pushState({}, '', '/');
-          setPath('/');
-        }}
-      />
-    );
-  }
-
-  // Handle shared document links (anyone with the link can view without login)
-  const sharedDocId = extractSharedDocumentId(path);
-  if (sharedDocId) {
-    return <SharedDocumentView documentId={sharedDocId} />;
-  }
-
-  // Public marketing landing page only on Web when not logged in and vault uninitialized
-  if (!user && path === '/' && !isTauri() && !vaultReady) {
-    return <Landing />;
-  }
-
-  // Pantalla de Bienvenida (Bóveda local arriba y Login/Sync opcional abajo)
-  // Se muestra por defecto en el primer inicio de la app o si aún no se inicializó la bóveda
-  if (!vaultReady && path === '/') {
-    return (
-      <HomeWelcome
-        onContinue={() => {
-          setVaultReady(true);
-          window.history.pushState({}, '', '/');
-          setPath('/');
-        }}
-      />
-    );
-  }
-
-  // Cuando la bóveda está lista: renderizar NotesApp
+function AppShell() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-background">
@@ -116,4 +49,59 @@ export function MainRouter() {
       </div>
     </ProtectedRoute>
   );
+}
+
+export function MainRouter(): ReactElement {
+  const [path, setPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'));
+  const { user, isLoading } = useAuth();
+  const [vaultReady, setVaultReady] = useState(isVaultInitialized);
+  const isDesktop = useMemo(isTauri, []);
+
+  useEffect(() => {
+    const handlePopState = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleVaultConfigured = useCallback(() => {
+    setVaultReady(true);
+    window.history.pushState({}, '', '/');
+    setPath('/');
+  }, []);
+
+  const sharedDocId = useMemo(() => extractSharedDocumentId(path), [path]);
+
+  if (isLoading) {
+    return (
+      <div className="flex bg-neutral-900 justify-center items-center h-screen w-full text-white">
+        Loading...
+      </div>
+    );
+  }
+
+  if (sharedDocId) {
+    return <SharedDocumentView documentId={sharedDocId} />;
+  }
+
+  switch (path) {
+    case '/login':
+      return <Login />;
+
+    case '/register':
+      return <Register />;
+
+    case '/welcome':
+    case '/home':
+      return isDesktop
+        ? <HomeWelcome onContinue={handleVaultConfigured} />
+        : !user ? <Landing /> : <AppShell />;
+
+    case '/':
+      return isDesktop
+        ? (!vaultReady ? <HomeWelcome onContinue={handleVaultConfigured} /> : <AppShell />)
+        : (!user ? <Landing /> : <AppShell />);
+
+    default:
+      return <AppShell />;
+  }
 }

@@ -23,6 +23,7 @@ import { ShortcutEditorRow } from "./shortcut-editor"
 import { useKeyboardShortcuts, type ShortcutId } from "../../context/KeyboardShortcutsContext"
 import { AiSettings } from "./ai-settings"
 import { pickVaultFolder, saveVaultPath } from "../../../core/services/vault"
+import { isTauri } from "../../../core/utils/platform"
 import Login from "../../pages/Login"
 
 interface ShortcutItem {
@@ -309,52 +310,54 @@ export function SettingsDialog({
                                         )}
                                     </div>
 
-                                    {/* Vault / Bóveda Local: Input + botón Cambiar */}
-                                    <div>
-                                        <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">
-                                            {language === 'es' ? 'Bóveda Local' : 'Local Vault'}
-                                        </h3>
-                                        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
-                                            <label className="text-xs font-medium text-muted-foreground block">
-                                                {language === 'es' ? 'Carpeta de la Bóveda (Vault)' : 'Vault Folder'}
-                                            </label>
-                                            <div className="flex gap-2 items-center">
-                                                <Input
-                                                    value={vaultPath}
-                                                    onChange={handlePathChange}
-                                                    placeholder="Ruta a la carpeta del vault..."
-                                                    className="font-mono text-xs bg-background border-border"
-                                                />
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="shrink-0 text-xs px-4 h-9"
-                                                    onClick={handleBrowseVault}
-                                                >
-                                                    {language === 'es' ? 'Cambiar' : 'Change'}
-                                                </Button>
-                                            </div>
-                                            <div className="flex justify-between items-center pt-2 border-t border-border/50">
-                                                <p className="text-[11px] text-muted-foreground">
-                                                    {language === 'es' 
-                                                        ? 'Tus notas y datos locales se guardan en esta carpeta.' 
-                                                        : 'Your notes and local data are stored in this folder.'}
-                                                </p>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-xs text-muted-foreground hover:text-foreground h-7 px-2 shrink-0"
-                                                    onClick={() => {
-                                                        onOpenChange(false);
-                                                        window.history.pushState({}, '', '/welcome');
-                                                        window.dispatchEvent(new PopStateEvent('popstate'));
-                                                    }}
-                                                >
-                                                    {language === 'es' ? 'Ver pantalla de inicio' : 'Open welcome screen'}
-                                                </Button>
+                                    {/* Vault / Bóveda Local: Input + botón Cambiar (Solo en la app nativa Tauri) */}
+                                    {isTauri() && (
+                                        <div>
+                                            <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">
+                                                {language === 'es' ? 'Bóveda Local' : 'Local Vault'}
+                                            </h3>
+                                            <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+                                                <label className="text-xs font-medium text-muted-foreground block">
+                                                    {language === 'es' ? 'Carpeta de la Bóveda (Vault)' : 'Vault Folder'}
+                                                </label>
+                                                <div className="flex gap-2 items-center">
+                                                    <Input
+                                                        value={vaultPath}
+                                                        onChange={handlePathChange}
+                                                        placeholder="Ruta a la carpeta del vault..."
+                                                        className="font-mono text-xs bg-background border-border"
+                                                    />
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="shrink-0 text-xs px-4 h-9"
+                                                        onClick={handleBrowseVault}
+                                                    >
+                                                        {language === 'es' ? 'Cambiar' : 'Change'}
+                                                    </Button>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        {language === 'es' 
+                                                            ? 'Tus notas y datos locales se guardan en esta carpeta.' 
+                                                            : 'Your notes and local data are stored in this folder.'}
+                                                    </p>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-xs text-muted-foreground hover:text-foreground h-7 px-2 shrink-0"
+                                                        onClick={() => {
+                                                            onOpenChange(false);
+                                                            window.history.pushState({}, '', '/welcome');
+                                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                                        }}
+                                                    >
+                                                        {language === 'es' ? 'Ver pantalla de inicio' : 'Open welcome screen'}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
 
