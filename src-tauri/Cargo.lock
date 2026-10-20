@@ -2254,6 +2254,7 @@ name = "nout"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "jni",
  "log",
  "rfd",
  "rusqlite",

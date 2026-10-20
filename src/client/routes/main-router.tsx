@@ -9,6 +9,7 @@ import Register from '../pages/Register';
 import Landing from '../pages/Landing';
 import HomeWelcome from '../pages/HomeWelcome';
 import SharedDocumentView from '../pages/SharedDocumentView';
+import { UpdateBanner } from '../components/update/UpdateBanner';
 
 const RESERVED_ROUTES = new Set([
   '',
@@ -79,29 +80,39 @@ export function MainRouter(): ReactElement {
     );
   }
 
-  if (sharedDocId) {
-    return <SharedDocumentView documentId={sharedDocId} />;
-  }
+  const content = (() => {
+    if (sharedDocId) {
+      return <SharedDocumentView documentId={sharedDocId} />;
+    }
 
-  switch (path) {
-    case '/login':
-      return <Login />;
+    switch (path) {
+      case '/login':
+        return <Login />;
 
-    case '/register':
-      return <Register />;
+      case '/register':
+        return <Register />;
 
-    case '/welcome':
-    case '/home':
-      return isDesktop
-        ? <HomeWelcome onContinue={handleVaultConfigured} />
-        : !user ? <Landing /> : <AppShell />;
+      case '/welcome':
+      case '/home':
+        return isDesktop
+          ? <HomeWelcome onContinue={handleVaultConfigured} />
+          : !user ? <Landing /> : <AppShell />;
 
-    case '/':
-      return isDesktop
-        ? (!vaultReady ? <HomeWelcome onContinue={handleVaultConfigured} /> : <AppShell />)
-        : (!user ? <Landing /> : <AppShell />);
+      case '/':
+        return isDesktop
+          ? (!vaultReady ? <HomeWelcome onContinue={handleVaultConfigured} /> : <AppShell />)
+          : (!user ? <Landing /> : <AppShell />);
 
-    default:
-      return <AppShell />;
-  }
+      default:
+        return <AppShell />;
+    }
+  })();
+
+  return (
+    <>
+      {isDesktop && <UpdateBanner />}
+      {content}
+    </>
+  );
 }
+

@@ -11,6 +11,26 @@ pub struct AppState {
     pub db: DatabaseHandle,
 }
 
+#[cfg(target_os = "android")]
+static JVM: std::sync::OnceLock<jni::JavaVM> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+    if let Ok(jvm) = unsafe { jni::JavaVM::from_raw(vm) } {
+        let _ = JVM.set(jvm);
+    }
+    jni::sys::JNI_VERSION_1_6
+}
+
+#[cfg(target_os = "android")]
+#[must_use]
+pub fn get_jvm() -> Option<&'static jni::JavaVM> {
+    JVM.get()
+}
+
+#[allow(unused_must_use)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tauri::Builder::default()
@@ -48,6 +68,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::system::get_platform_info,
             commands::system::pick_vault_folder,
             commands::system::get_default_vault_folder,
+            commands::system::trigger_app_update,
         ])
         .run(tauri::generate_context!())?;
 
