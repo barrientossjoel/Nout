@@ -33,10 +33,17 @@ pub fn get_platform_info() -> PlatformInfo {
 #[tauri::command]
 #[must_use]
 pub fn pick_vault_folder() -> Option<String> {
-    rfd::FileDialog::new()
-        .set_title("Seleccionar carpeta de la bóveda Nout")
-        .pick_folder()
-        .map(|path| path.to_string_lossy().to_string())
+    #[cfg(not(target_os = "android"))]
+    {
+        rfd::FileDialog::new()
+            .set_title("Seleccionar carpeta de la bóveda Nout")
+            .pick_folder()
+            .map(|path| path.to_string_lossy().to_string())
+    }
+    #[cfg(target_os = "android")]
+    {
+        None
+    }
 }
 
 #[tauri::command]

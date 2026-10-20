@@ -51,3 +51,5 @@ AGENTS.md
 /public/editor_feature.png
 /public/heromockup.avif
 /public/icon3.png
+/build-apk/
+*.apk
