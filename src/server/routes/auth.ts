@@ -80,8 +80,10 @@ const getGoogleAuth = (reqUrl: string) => {
 };
 
 authRouter.get('/google', async (c) => {
+    const flowId = c.req.query('flowId') || '';
     const googleAuth = getGoogleAuth(c.req.url);
-    const state = generateState();
+    const rawState = generateState();
+    const state = flowId ? `${flowId}__${rawState}` : rawState;
     const codeVerifier = generateCodeVerifier();
 
     setCookie(c, 'google_oauth_data', JSON.stringify({ state, codeVerifier }), {
@@ -107,6 +109,8 @@ authRouter.get('/google/callback', async (c) => {
     const { state: storedState, codeVerifier: storedCodeVerifier } = JSON.parse(storedCookieData);
     if (state !== storedState) return c.json({ error: 'Invalid state' }, 400);
 
+    const flowId = state.includes('__') ? state.split('__')[0] : null;
+
     try {
         const tokens = await googleAuth.validateAuthorizationCode(code, storedCodeVerifier);
         const googleUserResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -128,12 +132,87 @@ authRouter.get('/google/callback', async (c) => {
         const { sessionId, expiresAt } = await AuthService.createSession(user.id);
         setAuthCookie(c, sessionId, expiresAt);
 
+        if (flowId) {
+            await AuthService.createSessionWithId(flowId, user.id);
+            return c.html(`
+                <!DOCTYPE html>
+                <html lang="es">
+                <head>
+                    <meta charset="utf-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                    <title>Nout - Sesión Iniciada</title>
+                    <style>
+                        body {
+                            background-color: #121215;
+                            color: #ffffff;
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            padding: 24px;
+                            box-sizing: border-box;
+                            text-align: center;
+                        }
+                        .card {
+                            background: #1a1a20;
+                            border: 1px solid #2a2a35;
+                            border-radius: 16px;
+                            padding: 36px 24px;
+                            max-width: 400px;
+                            width: 100%;
+                            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+                        }
+                        .icon { font-size: 48px; margin-bottom: 16px; }
+                        h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; color: #fff; }
+                        p { font-size: 14px; color: #9aa0a6; margin: 0 0 24px; line-height: 1.5; }
+                        .btn {
+                            display: inline-block;
+                            background: #2563eb;
+                            color: #ffffff;
+                            font-size: 15px;
+                            font-weight: 600;
+                            text-decoration: none;
+                            padding: 12px 28px;
+                            border-radius: 10px;
+                            box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <div class="icon">✨</div>
+                        <h1>¡Sesión iniciada con éxito!</h1>
+                        <p>Tu cuenta de Google fue vinculada correctamente. Pulsa abajo para regresar a Nout.</p>
+                        <a href="nout://auth?flowId=${flowId}" class="btn">Volver a Nout</a>
+                    </div>
+                    <script>
+                        window.location.href = "nout://auth?flowId=${flowId}";
+                    </script>
+                </body>
+                </html>
+            `);
+        }
+
         const frontendUrl = process.env.NODE_ENV === 'production' ? '/' : 'http://localhost:5173/';
         return c.redirect(frontendUrl);
     } catch (e: any) {
         console.error('Google OAuth error:', e);
         return c.json({ error: 'Authentication failed' }, 500);
     }
+});
+
+authRouter.get('/mobile-session', async (c) => {
+    const flowId = c.req.query('flowId');
+    if (!flowId) return c.json({ error: 'Missing flowId' }, 400);
+
+    const user = await AuthService.validateSession(flowId);
+    if (!user) {
+        return c.json({ pending: true }, 202);
+    }
+
+    return c.json({ user, success: true });
 });
 
 export { authRouter };

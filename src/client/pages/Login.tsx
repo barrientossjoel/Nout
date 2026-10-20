@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
-import { getApiUrl } from '../services/api';
+import { getApiUrl, initiateGoogleOAuth } from '../services/api';
 import { isTauri } from '../../core/utils/platform';
 
 const translations = {
@@ -92,14 +92,30 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
         }
     };
 
-    const handleGoogleLogin = () => {
-        if (isTauri()) {
-            setError(lang === 'es'
-                ? 'El inicio con Google solo está disponible en la versión web. Inicia sesión con correo y contraseña.'
-                : 'Google login is only available on web. Please log in with email and password.');
-            return;
-        }
-        window.location.href = '/api/auth/google';
+    const handleGoogleLogin = async () => {
+        setError('');
+        await initiateGoogleOAuth({
+            lang,
+            onStart: () => {
+                setSuccess(lang === 'es' ? 'Abriendo Google en el navegador...' : 'Opening Google in browser...');
+            },
+            onSuccess: (userData) => {
+                setSuccess(t.loginSuccess || 'Login successful!');
+                setUser(userData);
+                setTimeout(() => {
+                    if (onSuccess) {
+                        onSuccess();
+                    } else {
+                        window.history.pushState({}, '', '/');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                    }
+                }, 1000);
+            },
+            onError: (errMessage) => {
+                setSuccess('');
+                setError(errMessage);
+            },
+        });
     };
 
     const navigate = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {

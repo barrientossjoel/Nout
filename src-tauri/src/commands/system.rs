@@ -101,3 +101,49 @@ fn android_update(apk_url: &str) -> Result<(), AppError> {
 
     Ok(())
 }
+
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), AppError> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        android_open_url(&url)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, url);
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "android")]
+fn android_open_url(url: &str) -> Result<(), AppError> {
+    let jvm = crate::get_jvm().ok_or_else(|| {
+        AppError::Internal("JVM instance not initialized".to_string())
+    })?;
+
+    let mut env = jvm.attach_current_thread().map_err(|e| {
+        AppError::Internal(format!("Failed to attach JNI thread: {e}"))
+    })?;
+
+    let class = env.find_class("app/nout/desktop/MainActivity").map_err(|e| {
+        AppError::Internal(format!("Failed to locate MainActivity: {e}"))
+    })?;
+
+    let j_url = env.new_string(url).map_err(|e| {
+        AppError::Internal(format!("Failed to create Java string: {e}"))
+    })?;
+
+    env.call_static_method(
+        class,
+        "openUrl",
+        "(Ljava/lang/String;)V",
+        &[jni::objects::JValue::Object(&j_url)],
+    ).map_err(|e| {
+        AppError::Internal(format!("Failed to execute openUrl: {e}"))
+    })?;
+
+    Ok(())
+}
+

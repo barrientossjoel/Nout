@@ -21,6 +21,19 @@ export class AuthService {
         return { sessionId, expiresAt };
     }
 
+    static async createSessionWithId(sessionId: string, userId: string) {
+        const expiresAt = new Date(Date.now() + SESSION_EXPIRATION_MS);
+        await getDb().insert(sessions).values({
+            id: sessionId,
+            userId,
+            expiresAt
+        }).onConflictDoUpdate({
+            target: sessions.id,
+            set: { userId, expiresAt }
+        });
+        return { sessionId, expiresAt };
+    }
+
     static async deleteSession(sessionId: string) {
         await getDb().delete(sessions).where(eq(sessions.id, sessionId));
     }

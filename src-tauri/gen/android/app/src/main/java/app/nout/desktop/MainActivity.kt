@@ -25,6 +25,19 @@ class MainActivity : TauriActivity() {
         activity.downloadAndInstall(apkUrl)
       }
     }
+
+    @JvmStatic
+    fun openUrl(url: String) {
+      val activity = instance ?: return
+      activity.runOnUiThread {
+        try {
+          val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          }
+          activity.startActivity(intent)
+        } catch (_: Exception) {}
+      }
+    }
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {

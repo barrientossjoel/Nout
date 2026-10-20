@@ -69,6 +69,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::system::pick_vault_folder,
             commands::system::get_default_vault_folder,
             commands::system::trigger_app_update,
+            commands::system::open_external_url,
         ])
         .run(tauri::generate_context!())?;
 
