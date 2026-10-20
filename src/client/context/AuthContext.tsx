@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { isTauri } from '../../core/utils/platform';
+import { getApiUrl } from '../services/api';
 
 export type User = {
     id: string;
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        fetch('/api/auth/me')
+        fetch(getApiUrl('/api/auth/me'))
             .then(res => {
                 if (!res.ok) throw new Error('Not authenticated');
                 return res.json();
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const logout = async () => {
         try {
             if (user && !isTauri()) {
-                await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+                await fetch(getApiUrl('/api/auth/logout'), { method: 'POST' }).catch(() => {});
             }
             localStorage.removeItem('nout_cloud_user');
             localStorage.removeItem('nout_guest_mode');

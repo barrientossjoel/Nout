@@ -4,6 +4,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { getApiUrl } from '../services/api';
+import { isTauri } from '../../core/utils/platform';
 
 const translations = {
     en: {
@@ -63,7 +65,7 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
         setSuccess('');
 
         try {
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -91,6 +93,12 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
     };
 
     const handleGoogleLogin = () => {
+        if (isTauri()) {
+            setError(lang === 'es'
+                ? 'El inicio con Google solo está disponible en la versión web. Inicia sesión con correo y contraseña.'
+                : 'Google login is only available on web. Please log in with email and password.');
+            return;
+        }
         window.location.href = '/api/auth/google';
     };
 

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { getApiUrl } from '../services/api';
+import { isTauri } from '../../core/utils/platform';
 
 const translations = {
     en: {
@@ -58,7 +60,7 @@ export default function Register() {
         setSuccess('');
 
         try {
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch(getApiUrl('/api/auth/register'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, email, password }),
@@ -82,6 +84,12 @@ export default function Register() {
     };
 
     const handleGoogleLogin = () => {
+        if (isTauri()) {
+            setError(lang === 'es'
+                ? 'El registro con Google solo está disponible en la versión web. Regístrate con correo y contraseña.'
+                : 'Google signup is only available on web. Please sign up with email and password.');
+            return;
+        }
         window.location.href = '/api/auth/google';
     };
 

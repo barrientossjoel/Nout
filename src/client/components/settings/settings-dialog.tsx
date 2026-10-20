@@ -284,7 +284,7 @@ export function SettingsDialog({
                                                         {language === 'es' ? 'Cancelar' : 'Cancel'}
                                                     </Button>
                                                 </div>
-                                                <Login embedded className="p-0 border-0 bg-transparent shadow-none max-w-none" />
+                                                <Login embedded onSuccess={() => setShowLogin(false)} className="p-0 border-0 bg-transparent shadow-none max-w-none" />
                                             </div>
                                         ) : (
                                             <div className="rounded-lg border border-border bg-card p-4 flex items-center justify-between gap-4">
