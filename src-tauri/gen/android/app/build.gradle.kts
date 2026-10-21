@@ -17,7 +17,7 @@ android {
     compileSdk = 36
     namespace = "app.nout.desktop"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "app.nout.desktop"
         minSdk = 24
         targetSdk = 36

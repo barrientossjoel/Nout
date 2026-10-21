@@ -303,28 +303,31 @@ function NotesAppInner() {
 
   return (
     <ErrorBoundary>
-      <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+      <div className={cn(
+        "flex flex-col h-screen bg-background text-foreground overflow-hidden",
+        isMobile && "pt-[env(safe-area-inset-top,0px)]"
+      )}>
         <div className="flex flex-1 overflow-hidden">
           {/* If sidebar is hidden, we might want a way to open it. 
              But the button will be in Workspace headers. 
              So we just conditionally render Sidebar. 
          */}
           {/* Sidebar */}
-          {/* Mobile Overlay Backdrop */}
+          {/* Mobile Overlay Backdrop (Material 3 Scrim) */}
           {isMobile && showSidebar && (
             <div
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 transition-opacity"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[1050] transition-opacity animate-in fade-in duration-200"
               onClick={() => setShowSidebar(false)}
             />
           )}
 
           <div className={cn(
-            "flex flex-col bg-background transition-all duration-300 ease-in-out z-[100] flex-shrink-0 pointer-events-auto overflow-hidden",
+            "flex flex-col bg-background transition-all duration-300 ease-in-out flex-shrink-0 pointer-events-auto overflow-hidden",
             isMobile
-              ? "fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 border-r border-border shadow-2xl"
-              : "relative h-full border-r border-border",
+              ? "fixed top-0 bottom-0 left-0 pt-[env(safe-area-inset-top,0px)] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-r border-border/80 rounded-r-[28px] shadow-2xl z-[1060]"
+              : "relative h-full border-r border-border z-[100]",
             isMobile
-              ? (showSidebar ? "w-[85vw] max-w-[300px] translate-x-0" : "w-[85vw] max-w-[300px] -translate-x-full")
+              ? (showSidebar ? "w-[85vw] max-w-[320px] translate-x-0" : "w-[85vw] max-w-[320px] -translate-x-full")
               : (showSidebar ? "w-[250px]" : "w-0 border-none opacity-0")
           )}>
             <Sidebar
@@ -354,7 +357,10 @@ function NotesAppInner() {
               }}
             />
           </div>
-          <main className="flex-1 overflow-hidden bg-background flex flex-col relative">
+          <main className={cn(
+            "flex-1 overflow-hidden bg-background flex flex-col relative",
+            isMobile && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
+          )}>
             {(() => {
               const activeDoc = documents.find(d => d.id === currentView)
 

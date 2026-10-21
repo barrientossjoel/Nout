@@ -4,6 +4,26 @@ Registro cronológico de hitos, refactorizaciones arquitectónicas y optimizacio
 
 ---
 
+## [1.0.2] — Alineación Mobile Nativa: Google Material Design 3 & Apple HIG
+
+### 📱 Experiencia Mobile & APK (Android)
+- **Safe Area Insets & Edge-to-Edge:**
+  - Soporte completo de notch, punch-hole de cámara y barra de gestos Android / Home indicator (`--safe-area-*`, `.pt-safe`, `.pb-safe`).
+  - Protección de barra de estado en el contenedor principal de la aplicación (`notes-app.tsx`).
+  - Eliminación de destello gris táctil web (`-webkit-tap-highlight-color: transparent`) y soporte de gestos fluidos (`touch-action: manipulation`).
+- **Material Design 3 Navigation Bar:**
+  - Píldoras de selección activa (Active indicator pill) en la barra de navegación inferior.
+  - Dimensiones ergonómicas (altura base de 80dp con insets de safe-area) y áreas táctiles mínimas de 48×48dp (accesibilidad M3 y HIG).
+  - Floating Action Button (FAB) M3 de 56×56dp squircle (`rounded-2xl` / 16dp de radio) y elevación de Nivel 3.
+- **Hojas Inferiores Modales (Bottom Sheets):**
+  - Transformación del selector de pestañas móviles en un Bottom Sheet modal con tirador superior (grabber handle), esquinas superiores redondeadas a 28dp (`rounded-t-[28px]`) y tarjetas de previsualización táctiles.
+- **Material 3 Modal Navigation Drawer:**
+  - Menú lateral extendido a pantalla completa (`top-0 bottom-0`) con esquinas derechas redondeadas a 28dp, scrim backdrop atenuado y compensación de scroll inferior para evitar solapamientos con la barra de navegación.
+- **Micro-Feedback Háptico:**
+  - Utilidad `haptics.ts` con respuesta táctil nativa en toques de navegación, FAB y hojas modales.
+
+---
+
 ## [2026-09-28] — Colaboración Multijugador (Figma-Style) & Optimización Extrema (200+ FPS)
 
 > **Documento Detallado del Hito**: [TEAM_001_fix_collaboration.md](file:///d:/Workspace/nout/.teams/TEAM_001_fix_collaboration.md)

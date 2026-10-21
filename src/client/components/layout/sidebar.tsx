@@ -226,7 +226,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 md:hidden"
+            className="h-8 w-8 rounded-full md:hidden flex items-center justify-center p-0 text-muted-foreground hover:text-foreground"
             onClick={onCloseMobile}
             title="Close Menu"
           >
