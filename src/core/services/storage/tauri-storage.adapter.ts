@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Document } from '../../types/notes';
 import { IDocumentStorageService } from './types';
-import { getApiUrl, getAuthHeaders, getAuthToken, ensureAuthToken } from '../../../client/services/api';
+import { getApiUrl, getAuthHeaders, getAuthToken, setAuthToken, ensureAuthToken } from '../../../client/services/api';
 
 interface RawLocalDoc {
   id: string;
