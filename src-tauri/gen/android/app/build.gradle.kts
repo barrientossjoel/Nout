@@ -24,6 +24,11 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    sourceSets {
+        getByName("main") {
+            assets.setSrcDirs(listOf("../../../../dist"))
+        }
+    }
     buildTypes {
         getByName("debug") {
             applicationIdSuffix = ".debug"
