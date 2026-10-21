@@ -33,10 +33,20 @@ export function useNotesData() {
 
   useEffect(() => {
     fetchData();
+    if (user) {
+      const storage = getDocumentStorage();
+      if ('syncWithCloud' in storage && typeof (storage as any).syncWithCloud === 'function') {
+        (storage as any).syncWithCloud('active').then(() => {
+          fetchData();
+        }).catch((e: unknown) => {
+          console.warn('Silent auto-sync note:', e);
+        });
+      }
+    }
   }, [user, fetchData]);
 
   useEffect(() => {
-    // Auto-refresh when window regains focus or when notes sync event fires
+    // Auto-refresh when window regains focus, app becomes visible, or notes sync event fires
     const handleSync = async () => {
       try {
         const storage = getDocumentStorage();
@@ -47,6 +57,11 @@ export function useNotesData() {
         console.warn('Sync trigger failed:', e);
       }
       fetchData();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleSync();
+      }
     };
     const handleCloudSynced = (e: Event) => {
       const customEvent = e as CustomEvent<Document[]>;
@@ -66,11 +81,13 @@ export function useNotesData() {
     };
 
     window.addEventListener('focus', handleSync);
+    window.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('nout:sync_notes', handleSync);
     window.addEventListener('nout:cloud_synced', handleCloudSynced);
     
     return () => {
       window.removeEventListener('focus', handleSync);
+      window.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('nout:sync_notes', handleSync);
       window.removeEventListener('nout:cloud_synced', handleCloudSynced);
     };

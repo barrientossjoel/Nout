@@ -22,9 +22,8 @@ import type { Document } from '../../../core/types/notes'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 
 import { RenameDialog } from '../../components/ui/rename-dialog'
-import { Pencil, Link2, RefreshCw } from 'lucide-react'
+import { Pencil, Link2 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
-import { useAuth } from '../../context/AuthContext'
 
 interface SidebarTreeProps {
     documents: Document[]
@@ -35,7 +34,6 @@ interface SidebarTreeProps {
     onMoveDocument?: (id: string, newParentId: string | null, newIndex?: number) => void
     onUpdateDocument: (doc: Document) => void
     onDoubleClickDocument?: (id: string) => void
-    onOpenLogin?: () => void
 }
 
 interface TreeNodeProps extends Omit<SidebarTreeProps, 'documents' | 'activeDocumentId'> {
@@ -211,23 +209,8 @@ const MemoizedTreeNode = React.memo(function TreeNode({
     )
 })
 
-export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onCreateDocument, onDeleteDocument, onMoveDocument, onUpdateDocument, onDoubleClickDocument, onOpenLogin }: SidebarTreeProps) {
-    const { t, language } = useLanguage()
-    const { user } = useAuth()
-    const [isSyncing, setIsSyncing] = useState(false)
-
-    useEffect(() => {
-        const handleStatus = (e: Event) => {
-            const ce = e as CustomEvent<{ state: string }>
-            if (ce.detail?.state === 'syncing') {
-                setIsSyncing(true)
-            } else {
-                setIsSyncing(false)
-            }
-        }
-        window.addEventListener('nout:sync_status', handleStatus)
-        return () => window.removeEventListener('nout:sync_status', handleStatus)
-    }, [])
+export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onCreateDocument, onDeleteDocument, onMoveDocument, onUpdateDocument, onDoubleClickDocument }: SidebarTreeProps) {
+    const { t } = useLanguage()
 
     // Build tree
     const tree = React.useMemo(() => {
@@ -332,31 +315,8 @@ export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onC
                         {provided.placeholder}
 
                         {documents.length === 0 && (
-                            <div className="px-3 py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2.5">
-                                <p className="font-normal">{t('noDocumentsYet') || 'Aún no hay documentos'}</p>
-                                {user ? (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={isSyncing}
-                                        className="h-7 text-xs gap-1.5 border-border/60 hover:bg-muted"
-                                        onClick={() => {
-                                            window.dispatchEvent(new CustomEvent('nout:sync_notes'));
-                                        }}
-                                    >
-                                        <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin text-primary")} />
-                                        <span>{isSyncing ? (language === 'es' ? 'Sincronizando...' : 'Syncing...') : (language === 'es' ? 'Sincronizar ahora' : 'Sync now')}</span>
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"
-                                        onClick={onOpenLogin}
-                                    >
-                                        <span>{language === 'es' ? 'Iniciar sesión para sincronizar' : 'Log in to sync'}</span>
-                                    </Button>
-                                )}
+                            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                {t('noDocumentsYet') || 'No documents yet.'}
                             </div>
                         )}
                     </div>

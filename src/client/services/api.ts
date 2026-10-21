@@ -8,8 +8,7 @@ export function getApiBaseUrl(): string {
         isTauri() ||
         window.location.protocol === 'tauri:' ||
         window.location.protocol === 'asset:' ||
-        window.location.hostname === 'tauri.localhost' ||
-        (window.location.hostname === 'localhost' && window.location.port !== '5173')
+        window.location.hostname === 'tauri.localhost'
     ) {
         return 'https://nout.vercel.app';
     }
