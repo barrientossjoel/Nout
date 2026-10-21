@@ -298,7 +298,7 @@ export class TauriStorageAdapter implements IDocumentStorageService {
       id: raw.id,
       userId: raw.userId || 'local_guest',
       title: raw.title,
-      content: raw.content ?? undefined,
+      content: raw.content ?? null,
       parentId: raw.parentId || null,
       status: raw.status || 'active',
       isExpanded: Boolean(raw.isExpanded),
