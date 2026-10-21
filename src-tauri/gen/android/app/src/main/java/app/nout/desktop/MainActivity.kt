@@ -26,6 +26,16 @@ class MainActivity : TauriActivity() {
       activity.downloadAndInstall(apkUrl)
     }
 
+    @Volatile
+    private var pendingDeepLink: String? = null
+
+    @JvmStatic
+    fun consumePendingDeepLink(): String? {
+      val link = pendingDeepLink
+      pendingDeepLink = null
+      return link
+    }
+
     @JvmStatic
     fun openUrl(url: String) {
       val activity = instance ?: return
@@ -52,12 +62,22 @@ class MainActivity : TauriActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
+    handleDeepLink(intent)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     instance = this
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    handleDeepLink(intent)
+  }
+
+  private fun handleDeepLink(intent: Intent?) {
+    val uri = intent?.data?.toString() ?: return
+    if (uri.startsWith("nout://")) {
+      Log.i(TAG, "Received deep link: $uri")
+      pendingDeepLink = uri
+    }
   }
 
   override fun onDestroy() {

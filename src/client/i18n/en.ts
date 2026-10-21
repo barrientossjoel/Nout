@@ -72,6 +72,7 @@ export const en = {
     noResultsFound: 'No results found.',
     library: 'Library',
     noFilesYet: 'No files yet — click ↑ to attach',
+    noDocumentsYet: 'No documents yet',
     viewMode: 'View Mode',
     editMode: 'Edit Mode',
     hideTabs: 'Hide Tabs',

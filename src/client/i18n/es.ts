@@ -72,6 +72,7 @@ export const es = {
     noResultsFound: 'No se encontraron resultados.',
     library: 'Biblioteca',
     noFilesYet: 'Aún no hay archivos — haz clic en ↑ para adjuntar',
+    noDocumentsYet: 'Aún no hay documentos',
     viewMode: 'Modo lectura',
     editMode: 'Modo edición',
     hideTabs: 'Ocultar pestañas',

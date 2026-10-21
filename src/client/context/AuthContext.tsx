@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { isTauri } from '../../core/utils/platform';
 import { getApiUrl, ensureAuthToken } from '../services/api';
+import { checkAndProcessPendingDeepLink } from '../services/deep-link';
 
 export type User = {
     id: string;
@@ -25,6 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const updateUser = useCallback((newUser: User | null) => {
+        setUser(newUser);
+        if (newUser) {
+            localStorage.setItem('nout_cloud_user', JSON.stringify(newUser));
+            localStorage.removeItem('nout_guest_mode');
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('nout:sync_notes'));
+            }
+        } else {
+            localStorage.removeItem('nout_cloud_user');
+            localStorage.removeItem('nout_auth_token');
+        }
+    }, []);
+
     useEffect(() => {
         // En entorno nativo Tauri (Windows, Linux, Android), operar en modo local por defecto
         if (isTauri()) {
@@ -42,7 +57,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(null);
             }
             setIsLoading(false);
-            return;
+
+            // Escuchar deep links de autenticación nativos (nout://)
+            checkAndProcessPendingDeepLink(updateUser);
+            const handleFocus = () => {
+                checkAndProcessPendingDeepLink(updateUser);
+            };
+            const handleVisibility = () => {
+                if (document.visibilityState === 'visible') {
+                    checkAndProcessPendingDeepLink(updateUser);
+                }
+            };
+            window.addEventListener('focus', handleFocus);
+            document.addEventListener('visibilitychange', handleVisibility);
+
+            return () => {
+                window.removeEventListener('focus', handleFocus);
+                document.removeEventListener('visibilitychange', handleVisibility);
+            };
         }
 
         fetch(getApiUrl('/api/auth/me'))
@@ -61,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(null);
             })
             .finally(() => setIsLoading(false));
-    }, []);
+    }, [updateUser]);
 
     const enableGuestMode = () => {
         localStorage.setItem('nout_guest_mode', 'true');
@@ -85,19 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const updateUser = (newUser: User | null) => {
-        setUser(newUser);
-        if (newUser) {
-            localStorage.setItem('nout_cloud_user', JSON.stringify(newUser));
-            localStorage.removeItem('nout_guest_mode');
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('nout:sync_notes'));
-            }
-        } else {
-            localStorage.removeItem('nout_cloud_user');
-            localStorage.removeItem('nout_auth_token');
-        }
-    };
 
     const isGuest = !user;
 

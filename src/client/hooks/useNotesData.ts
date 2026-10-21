@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDocuments, getTrashItems, getDocument } from '../actions/actions';
+import { getDocumentStorage } from '../../core/services/storage';
 import { type Document } from '../../core/types/notes';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,7 +37,17 @@ export function useNotesData() {
 
   useEffect(() => {
     // Auto-refresh when window regains focus or when notes sync event fires
-    const handleSync = () => fetchData();
+    const handleSync = async () => {
+      try {
+        const storage = getDocumentStorage();
+        if ('syncWithCloud' in storage && typeof (storage as any).syncWithCloud === 'function') {
+          await (storage as any).syncWithCloud('active');
+        }
+      } catch (e) {
+        console.warn('Sync trigger failed:', e);
+      }
+      fetchData();
+    };
     const handleCloudSynced = (e: Event) => {
       const customEvent = e as CustomEvent<Document[]>;
       if (customEvent.detail && Array.isArray(customEvent.detail)) {

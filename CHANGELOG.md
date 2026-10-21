@@ -4,6 +4,28 @@ Registro cronológico de hitos, refactorizaciones arquitectónicas y optimizacio
 
 ---
 
+## [1.0.7] — Captura de Deep Link OAuth (nout://), Auto-Recuperación de Sesión 401 y Botón de Sincronización Manual
+
+### 🔗 Captura Nativa de Deep Link de Autenticación (`nout://auth`) en Android
+- **Integración JNI en `MainActivity.kt`:**
+  - `MainActivity` ahora almacena y consume el `intent.data` recibido vía `nout://auth?flowId=...&token=...&userId=...` tanto en `onCreate` como en `onNewIntent`.
+  - Se implementó el comando Tauri `get_pending_deep_link` vía JNI para transferir el deep link directamente al frontend de React al volver del navegador o CustomTabs.
+  - Al recibir el deep link en `deep-link.ts` y `AuthContext.tsx`, la aplicación autentica de inmediato y dispara la sincronización en la nube sin depender del polling en segundo plano (que Android congela cuando Chrome está en primer plano).
+
+### 🔄 Auto-Recuperación de Sesión (401) y Detección Dinámica de Base URL
+- **Resolución dinámica de API:**
+  - `getApiUrl` ahora determina dinámicamente si está corriendo en entorno nativo (`https://nout.vercel.app`) sin congelar una cadena vacía en la carga del módulo.
+  - En caso de que un token expire (HTTP 401), `TauriStorageAdapter.syncWithCloud` fuerza la renovación mediante `/api/auth/recover-session` y reintenta la sincronización automáticamente en lugar de fallar silenciosamente con cero notas.
+
+### 📱 UI de Sincronización y Accesibilidad en Dispositivos Móviles
+- **Botón de Sincronización Manual en Cabecera de Documentos:**
+  - Se agregó un botón interactivo con indicador giratorio (`RefreshCw`) en la barra lateral para sincronizar notas de inmediato bajo demanda.
+- **Estado Vacío Intuitivo:**
+  - Si la lista de notas está vacía y el usuario no ha iniciado sesión, el árbol lateral y la barra muestran un botón directo para iniciar sesión en lugar de un mensaje estéril de "No documents yet".
+  - Si el usuario está autenticado, muestra el botón "Sincronizar ahora".
+
+---
+
 ## [1.0.6] — Descarga Completa de Contenido de Notas, Canvases y Sincronización de Quick Notes
 
 ### 📝 Descarga de Contenido Completo de Documentos en la Sincronización Inicial

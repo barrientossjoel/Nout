@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Search, Calendar, Trash2, LayoutDashboard, FileText, BookOpen, Upload, Loader2, X, MoreVertical, Pencil, Link2, ChevronDown, ChevronRight, Network, Bot } from 'lucide-react'
+import { Plus, Search, Calendar, Trash2, LayoutDashboard, FileText, BookOpen, Upload, Loader2, X, MoreVertical, Pencil, Link2, ChevronDown, ChevronRight, Network, Bot, RefreshCw, Cloud } from 'lucide-react'
 import { upload } from '@vercel/blob/client'
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -24,6 +24,7 @@ import { WorkspaceSwitcher } from './workspace-switcher'
 import { RenameDialog } from '../../components/ui/rename-dialog'
 import type { Document, WorkspaceRecord } from "../../../core/types/notes"
 import { useLanguage } from '../../context/LanguageContext'
+import { useAuth } from '../../context/AuthContext'
 import { createDocument } from '../../actions/actions'
 
 export type SidebarView = "search" | "calendar" | "trash" | "graph" | "ai" | string // string = documentId
@@ -72,6 +73,8 @@ export function Sidebar({
   onDoubleClickDocument
 }: SidebarProps) {
   const { t } = useLanguage()
+  const { user } = useAuth()
+  const [isSyncing, setIsSyncing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(true)
@@ -79,6 +82,25 @@ export function Sidebar({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [renameNode, setRenameNode] = useState<Document | null>(null)
+
+  useEffect(() => {
+    const handleStatus = (e: Event) => {
+      const ce = e as CustomEvent<{ state: string }>
+      setIsSyncing(ce.detail?.state === 'syncing')
+    }
+    window.addEventListener('nout:sync_status', handleStatus)
+    return () => window.removeEventListener('nout:sync_status', handleStatus)
+  }, [])
+
+  const handleManualSync = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!user) {
+      onOpenSettings?.()
+      return
+    }
+    setIsSyncing(true)
+    window.dispatchEvent(new CustomEvent('nout:sync_notes'))
+  }
 
   // F2 Shortcut
   useEffect(() => {
@@ -348,24 +370,56 @@ export function Sidebar({
           </div>
           {t('documentsHeader')}
         </h2>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-6 w-6 p-0 flex items-center justify-center hover:bg-muted" title="Create New">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => onCreateDocument(null, 'text')}>
-              <FileText className="mr-2 h-4 w-4" />
-              <span>{t('newPage')}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreateDocument(null, 'canvas')}>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>{t('newCanvas')}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            className="h-6 w-6 p-0 flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground"
+            title={user ? (isSyncing ? 'Sincronizando notas...' : 'Sincronizar ahora con la nube') : 'Iniciar sesión para sincronizar'}
+            onClick={handleManualSync}
+            disabled={isSyncing}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin text-primary")} />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-6 w-6 p-0 flex items-center justify-center hover:bg-muted" title="Create New">
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => onCreateDocument(null, 'text')}>
+                <FileText className="mr-2 h-4 w-4" />
+                <span>{t('newPage')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCreateDocument(null, 'canvas')}>
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                <span>{t('newCanvas')}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      {!user && (
+        <div className="mx-2 mb-2 p-2 rounded-md border border-primary/20 bg-primary/5 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-foreground">Sincronización Cloud</span>
+            <Cloud className="h-3 w-3 text-primary" />
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-tight">
+            Inicia sesión para descargar y sincronizar tus notas de tu cuenta.
+          </p>
+          <Button
+            variant="default"
+            size="sm"
+            className="h-6 text-[11px] w-full mt-0.5 font-normal"
+            onClick={onOpenSettings}
+          >
+            Iniciar sesión
+          </Button>
+        </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-2 pt-0 flex flex-col min-h-full">
@@ -379,6 +433,7 @@ export function Sidebar({
               onMoveDocument={onMoveDocument}
               onUpdateDocument={onUpdateDocument}
               onDoubleClickDocument={onDoubleClickDocument}
+              onOpenLogin={onOpenSettings}
             />
           )}
 

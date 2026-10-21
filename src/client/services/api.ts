@@ -2,11 +2,25 @@ import { hc } from 'hono/client';
 import type { AppType } from '../../server';
 import { isTauri } from '../../core/utils/platform';
 
-export const API_BASE_URL = isTauri() ? 'https://nout.vercel.app' : '';
+export function getApiBaseUrl(): string {
+    if (typeof window === 'undefined') return 'https://nout.vercel.app';
+    if (
+        isTauri() ||
+        window.location.protocol === 'tauri:' ||
+        window.location.protocol === 'asset:' ||
+        window.location.hostname === 'tauri.localhost' ||
+        (window.location.hostname === 'localhost' && window.location.port !== '5173')
+    ) {
+        return 'https://nout.vercel.app';
+    }
+    return '';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export function getApiUrl(path: string): string {
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    return `${API_BASE_URL}${cleanPath}`;
+    return `${getApiBaseUrl()}${cleanPath}`;
 }
 
 export function getAuthToken(): string | null {
@@ -28,9 +42,11 @@ export function getAuthHeaders(): Record<string, string> {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function ensureAuthToken(): Promise<string | null> {
-    const existingToken = getAuthToken();
-    if (existingToken) return existingToken;
+export async function ensureAuthToken(forceRefresh = false): Promise<string | null> {
+    if (!forceRefresh) {
+        const existingToken = getAuthToken();
+        if (existingToken) return existingToken;
+    }
 
     if (typeof window === 'undefined') return null;
     const savedUserStr = localStorage.getItem('nout_cloud_user');
@@ -87,20 +103,18 @@ export async function initiateGoogleOAuth({ onStart, onSuccess, onError, lang = 
 
     let attempts = 0;
     const maxAttempts = 80; // 2 minutes (80 * 1.5s)
-    const interval = setInterval(async () => {
-        attempts++;
-        if (attempts > maxAttempts) {
-            clearInterval(interval);
-            onError?.(lang === 'es' ? 'El tiempo de inicio de sesión expiró. Inténtalo de nuevo.' : 'Login session timed out. Please try again.');
-            return;
-        }
+    let isCompleted = false;
 
+    const checkSession = async () => {
+        if (isCompleted) return;
         try {
             const res = await fetch(getApiUrl(`/api/auth/mobile-session?flowId=${flowId}`));
             if (res.ok) {
                 const data = await res.json();
                 if (data.user) {
+                    isCompleted = true;
                     clearInterval(interval);
+                    window.removeEventListener('focus', onFocus);
                     if (data.token) {
                         setAuthToken(data.token);
                     }
@@ -113,12 +127,34 @@ export async function initiateGoogleOAuth({ onStart, onSuccess, onError, lang = 
         } catch {
             // Continúa reintentando ante intermitencias de red
         }
+    };
+
+    const onFocus = () => {
+        checkSession();
+    };
+    window.addEventListener('focus', onFocus);
+
+    const interval = setInterval(async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+            clearInterval(interval);
+            window.removeEventListener('focus', onFocus);
+            if (!isCompleted) {
+                onError?.(lang === 'es' ? 'El tiempo de inicio de sesión expiró. Inténtalo de nuevo.' : 'Login session timed out. Please try again.');
+            }
+            return;
+        }
+        await checkSession();
     }, 1500);
 
-    return () => clearInterval(interval);
+    return () => {
+        isCompleted = true;
+        clearInterval(interval);
+        window.removeEventListener('focus', onFocus);
+    };
 }
 
-const client = hc<AppType>(API_BASE_URL || '/', {
+const client = hc<AppType>(getApiBaseUrl() || '/', {
     headers: () => getAuthHeaders(),
 });
 

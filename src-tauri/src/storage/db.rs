@@ -518,6 +518,50 @@ mod tests {
         let res = batch_upsert_documents(&mut conn, vec![doc_child, doc_parent]);
         assert!(res.is_ok(), "Batch upsert failed: {:?}", res.err());
     }
+
+    #[test]
+    fn test_deserialize_and_upsert_json() {
+        let json_data = r#"[
+            {
+                "id": "doc-1",
+                "userId": "user-1",
+                "parentId": null,
+                "title": "Title 1",
+                "content": "Content 1",
+                "docType": "text",
+                "status": "active",
+                "isExpanded": false,
+                "isFavorite": false,
+                "tags": null,
+                "order": 0,
+                "createdAt": 1771123229000,
+                "updatedAt": 1771123229000
+            },
+            {
+                "id": "doc-child",
+                "userId": "user-1",
+                "parentId": "doc-1",
+                "title": "Child 1",
+                "content": null,
+                "docType": "canvas",
+                "status": "active",
+                "isExpanded": true,
+                "isFavorite": true,
+                "tags": "[\"tag1\"]",
+                "order": 1,
+                "createdAt": 1771123229000,
+                "updatedAt": 1771123229000
+            }
+        ]"#;
+
+        let docs: Vec<UpsertDocumentInput> = serde_json::from_str(json_data).unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let res = batch_upsert_documents(&mut conn, docs);
+        assert!(res.is_ok(), "Upsert failed: {:?}", res.err());
+        let returned = res.unwrap();
+        assert_eq!(returned.len(), 2);
+    }
 }
 
 

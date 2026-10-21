@@ -197,10 +197,10 @@ authRouter.get('/google/callback', async (c) => {
                         <div class="icon">✨</div>
                         <h1>¡Sesión iniciada con éxito!</h1>
                         <p>Tu cuenta de Google fue vinculada correctamente. Pulsa abajo para regresar a Nout.</p>
-                        <a href="nout://auth?flowId=${flowId}" class="btn">Volver a Nout</a>
+                        <a href="nout://auth?flowId=${flowId}&token=${flowId}&userId=${user.id}" class="btn">Volver a Nout</a>
                     </div>
                     <script>
-                        window.location.href = "nout://auth?flowId=${flowId}";
+                        window.location.href = "nout://auth?flowId=${flowId}&token=${flowId}&userId=${user.id}";
                     </script>
                 </body>
                 </html>

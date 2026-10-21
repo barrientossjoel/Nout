@@ -219,25 +219,52 @@ export class TauriStorageAdapter implements IDocumentStorageService {
     }
 
     this.syncPromise = (async () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'syncing' } }));
+      }
+
       try {
-        await ensureAuthToken();
-        const headers = {
+        let token = await ensureAuthToken();
+        let headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
-        const res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
+        let res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
           headers,
           credentials: 'include',
         });
 
+        // If session expired (401), force-refresh token and retry once
+        if (res.status === 401) {
+          console.info('[TauriStorage] Session expired (401), attempting token refresh...');
+          setAuthToken(null);
+          token = await ensureAuthToken(true);
+          if (token) {
+            headers = {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            };
+            res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
+              headers,
+              credentials: 'include',
+            });
+          }
+        }
+
         if (!res.ok) {
           console.warn(`[TauriStorage] Cloud sync fetch failed with status ${res.status}`);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'error', status: res.status } }));
+          }
           return [];
         }
 
         const remoteDocs = await res.json();
         if (!Array.isArray(remoteDocs) || remoteDocs.length === 0) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'synced', count: 0 } }));
+          }
           return [];
         }
 
@@ -265,13 +292,19 @@ export class TauriStorageAdapter implements IDocumentStorageService {
           .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
           .map(this.mapLocalDoc);
 
-        if (typeof window !== 'undefined' && mapped.length > 0) {
-          window.dispatchEvent(new CustomEvent('nout:cloud_synced', { detail: mapped }));
+        if (typeof window !== 'undefined') {
+          if (mapped.length > 0) {
+            window.dispatchEvent(new CustomEvent('nout:cloud_synced', { detail: mapped }));
+          }
+          window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'synced', count: mapped.length } }));
         }
 
         return mapped;
       } catch (err) {
         console.warn('[TauriStorage] Cloud sync error:', err);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'error', error: String(err) } }));
+        }
         return [];
       } finally {
         this.syncPromise = null;

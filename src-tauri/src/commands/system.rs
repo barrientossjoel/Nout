@@ -147,3 +147,53 @@ fn android_open_url(url: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn get_pending_deep_link() -> Result<Option<String>, AppError> {
+    #[cfg(target_os = "android")]
+    {
+        android_get_pending_deep_link()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(None)
+    }
+}
+
+#[cfg(target_os = "android")]
+fn android_get_pending_deep_link() -> Result<Option<String>, AppError> {
+    let jvm = crate::get_jvm().ok_or_else(|| {
+        AppError::Internal("JVM instance not initialized".to_string())
+    })?;
+
+    let mut env = jvm.attach_current_thread().map_err(|e| {
+        AppError::Internal(format!("Failed to attach JNI thread: {e}"))
+    })?;
+
+    let class = env.find_class("app/nout/desktop/MainActivity").map_err(|e| {
+        AppError::Internal(format!("Failed to locate MainActivity: {e}"))
+    })?;
+
+    let result = env.call_static_method(
+        class,
+        "consumePendingDeepLink",
+        "()Ljava/lang/String;",
+        &[],
+    ).map_err(|e| {
+        AppError::Internal(format!("Failed to execute consumePendingDeepLink: {e}"))
+    })?;
+
+    let obj = result.l().map_err(|e| {
+        AppError::Internal(format!("Failed to get Java object from result: {e}"))
+    })?;
+
+    if obj.is_null() {
+        Ok(None)
+    } else {
+        let j_str = jni::objects::JString::from(obj);
+        let rust_str: String = env.get_string(&j_str).map_err(|e| {
+            AppError::Internal(format!("Failed to convert JString to Rust string: {e}"))
+        })?.into();
+        Ok(Some(rust_str))
+    }
+}
+
