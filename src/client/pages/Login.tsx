@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
-import { getApiUrl, initiateGoogleOAuth } from '../services/api';
+import { getApiUrl, initiateGoogleOAuth, setAuthToken } from '../services/api';
 import { isTauri } from '../../core/utils/platform';
 
 const translations = {
@@ -76,9 +76,15 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
             if (!res.ok) {
                 setError(data.error || t.loginFailed);
             } else {
+                if (data.token) {
+                    setAuthToken(data.token);
+                }
                 setSuccess(t.loginSuccess || "Login successful!");
                 setTimeout(() => {
                     setUser(data.user);
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('nout:sync_notes'));
+                    }
                     if (onSuccess) {
                         onSuccess();
                     } else {

@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::domain::document::{
-    CreateDocumentInput, LocalDocument, UpdateDocumentInput,
+    CreateDocumentInput, LocalDocument, UpdateDocumentInput, UpsertDocumentInput,
 };
 use crate::error::AppError;
 use crate::AppState;
@@ -35,6 +35,14 @@ pub async fn update_local_document(
     input: UpdateDocumentInput,
 ) -> Result<LocalDocument, AppError> {
     state.db.update_document(input).await
+}
+
+#[tauri::command]
+pub async fn upsert_local_documents(
+    state: State<'_, AppState>,
+    documents: Vec<UpsertDocumentInput>,
+) -> Result<Vec<LocalDocument>, AppError> {
+    state.db.upsert_documents(documents).await
 }
 
 #[tauri::command]

@@ -9,6 +9,25 @@ export function getApiUrl(path: string): string {
     return `${API_BASE_URL}${cleanPath}`;
 }
 
+export function getAuthToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('nout_auth_token');
+}
+
+export function setAuthToken(token: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (token) {
+        localStorage.setItem('nout_auth_token', token);
+    } else {
+        localStorage.removeItem('nout_auth_token');
+    }
+}
+
+export function getAuthHeaders(): Record<string, string> {
+    const token = getAuthToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export type GoogleAuthCallbacks = {
     onStart?: () => void;
     onSuccess: (user: any) => void;
@@ -50,7 +69,13 @@ export async function initiateGoogleOAuth({ onStart, onSuccess, onError, lang = 
                 const data = await res.json();
                 if (data.user) {
                     clearInterval(interval);
+                    if (data.token) {
+                        setAuthToken(data.token);
+                    }
                     onSuccess(data.user);
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('nout:sync_notes'));
+                    }
                 }
             }
         } catch {
@@ -61,6 +86,9 @@ export async function initiateGoogleOAuth({ onStart, onSuccess, onError, lang = 
     return () => clearInterval(interval);
 }
 
-const client = hc<AppType>(API_BASE_URL || '/');
+const client = hc<AppType>(API_BASE_URL || '/', {
+    headers: () => getAuthHeaders(),
+});
 
 export { client };
+

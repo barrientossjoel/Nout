@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.enableEdgeToEdge
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.FileProvider
 import java.io.File
 import java.net.HttpURLConnection
@@ -30,13 +31,27 @@ class MainActivity : TauriActivity() {
       val activity = instance ?: return
       activity.runOnUiThread {
         try {
-          val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-          }
-          activity.startActivity(intent)
-        } catch (_: Exception) {}
+          val customTabsIntent = CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .build()
+          customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          customTabsIntent.launchUrl(activity, Uri.parse(url))
+        } catch (e: Exception) {
+          Log.w(TAG, "CustomTabs failed, falling back to ACTION_VIEW: ${e.message}")
+          try {
+            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+              addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            activity.startActivity(fallback)
+          } catch (_: Exception) {}
+        }
       }
     }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {

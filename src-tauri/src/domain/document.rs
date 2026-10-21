@@ -100,3 +100,21 @@ pub struct UpdateDocumentInput {
     pub is_expanded: Option<bool>,
     pub status: Option<DocumentStatus>,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertDocumentInput {
+    pub id: String,
+    pub user_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub title: String,
+    pub content: Option<String>,
+    pub doc_type: Option<DocumentType>,
+    pub status: Option<DocumentStatus>,
+    pub is_expanded: Option<bool>,
+    pub is_favorite: Option<bool>,
+    pub tags: Option<String>,
+    pub order: Option<i32>,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
+}

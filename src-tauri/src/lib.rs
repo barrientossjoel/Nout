@@ -62,6 +62,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             commands::documents::get_local_document,
             commands::documents::create_local_document,
             commands::documents::update_local_document,
+            commands::documents::upsert_local_documents,
             commands::documents::delete_local_document,
             commands::documents::save_crdt_delta,
             commands::documents::get_crdt_deltas,

@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
-import { getApiUrl, initiateGoogleOAuth } from '../services/api';
+import { getApiUrl, initiateGoogleOAuth, setAuthToken } from '../services/api';
 import { isTauri } from '../../core/utils/platform';
 
 const translations = {
@@ -71,9 +71,15 @@ export default function Register() {
             if (!res.ok) {
                 setError(data.error || t.regFailed);
             } else {
+                if (data.token) {
+                    setAuthToken(data.token);
+                }
                 setSuccess(t.regSuccess || "Registration successful!");
                 setTimeout(() => {
                     setUser(data.user);
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('nout:sync_notes'));
+                    }
                     window.history.pushState({}, '', '/');
                     window.dispatchEvent(new PopStateEvent('popstate'));
                 }, 1500);

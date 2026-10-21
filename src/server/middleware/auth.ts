@@ -12,7 +12,9 @@ export type Env = {
 }
 
 export async function requireAuth(c: Context<Env>, next: Next) {
-    const sessionId = getCookie(c, 'auth_session');
+    const authHeader = c.req.header('Authorization');
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    const sessionId = bearerToken || getCookie(c, 'auth_session');
 
     if (!sessionId) {
         return c.json({ error: 'Unauthorized', message: 'No active session found' }, 401);

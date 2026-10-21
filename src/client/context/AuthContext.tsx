@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 await fetch(getApiUrl('/api/auth/logout'), { method: 'POST' }).catch(() => {});
             }
             localStorage.removeItem('nout_cloud_user');
+            localStorage.removeItem('nout_auth_token');
             localStorage.removeItem('nout_guest_mode');
             setUser(null);
             if (!isTauri()) {
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('nout_guest_mode');
         } else {
             localStorage.removeItem('nout_cloud_user');
+            localStorage.removeItem('nout_auth_token');
         }
     };
 

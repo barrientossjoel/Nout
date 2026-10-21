@@ -28,7 +28,11 @@ authRouter.post('/register', async (c) => {
     const { sessionId, expiresAt } = await AuthService.createSession(newUser.id);
     setAuthCookie(c, sessionId, expiresAt);
 
-    return c.json({ user: { id: newUser.id, email: newUser.email, name: newUser.name } });
+    return c.json({
+        user: { id: newUser.id, email: newUser.email, name: newUser.name },
+        token: sessionId,
+        sessionId,
+    });
 });
 
 authRouter.post('/login', async (c) => {
@@ -46,7 +50,11 @@ authRouter.post('/login', async (c) => {
     const { sessionId, expiresAt } = await AuthService.createSession(existingUser.id);
     setAuthCookie(c, sessionId, expiresAt);
 
-    return c.json({ user: { id: existingUser.id, email: existingUser.email, name: existingUser.name, avatarUrl: existingUser.avatarUrl } });
+    return c.json({
+        user: { id: existingUser.id, email: existingUser.email, name: existingUser.name, avatarUrl: existingUser.avatarUrl },
+        token: sessionId,
+        sessionId,
+    });
 });
 
 authRouter.post('/logout', async (c) => {
@@ -57,12 +65,16 @@ authRouter.post('/logout', async (c) => {
 });
 
 authRouter.get('/me', async (c) => {
-    const sessionId = getCookie(c, 'auth_session');
+    const authHeader = c.req.header('Authorization');
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+    const sessionId = bearerToken || getCookie(c, 'auth_session');
     if (!sessionId) return c.json({ user: null });
 
     const user = await AuthService.validateSession(sessionId);
     if (!user) {
-        deleteCookie(c, 'auth_session', { path: '/' });
+        if (!bearerToken) {
+            deleteCookie(c, 'auth_session', { path: '/' });
+        }
         return c.json({ user: null });
     }
 
@@ -212,7 +224,7 @@ authRouter.get('/mobile-session', async (c) => {
         return c.json({ pending: true }, 202);
     }
 
-    return c.json({ user, success: true });
+    return c.json({ user, token: flowId, sessionId: flowId, success: true });
 });
 
 export { authRouter };

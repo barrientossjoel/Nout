@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::domain::document::{
     CreateDocumentInput, DocumentStatus, DocumentType, LocalDocument, UpdateDocumentInput,
+    UpsertDocumentInput,
 };
 use crate::error::AppError;
 use crate::storage::migrations::run_migrations;
@@ -37,6 +38,10 @@ pub enum DbMessage {
     GetCrdtDeltas {
         document_id: String,
         responder: oneshot::Sender<Result<Vec<Vec<u8>>, AppError>>,
+    },
+    UpsertDocuments {
+        documents: Vec<UpsertDocumentInput>,
+        responder: oneshot::Sender<Result<Vec<LocalDocument>, AppError>>,
     },
 }
 
@@ -161,6 +166,23 @@ impl DatabaseHandle {
             .await
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
+
+    pub async fn upsert_documents(
+        &self,
+        documents: Vec<UpsertDocumentInput>,
+    ) -> Result<Vec<LocalDocument>, AppError> {
+        let (responder, receiver) = oneshot::channel();
+        self.sender
+            .send(DbMessage::UpsertDocuments {
+                documents,
+                responder,
+            })
+            .await
+            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
+        receiver
+            .await
+            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+    }
 }
 
 fn handle_db_message(conn: &mut Connection, msg: DbMessage) {
@@ -198,6 +220,13 @@ fn handle_db_message(conn: &mut Connection, msg: DbMessage) {
             responder,
         } => {
             let res = query_crdt_deltas(conn, &document_id);
+            let _ = responder.send(res);
+        }
+        DbMessage::UpsertDocuments {
+            documents,
+            responder,
+        } => {
+            let res = batch_upsert_documents(conn, documents);
             let _ = responder.send(res);
         }
     }
@@ -387,3 +416,60 @@ fn query_crdt_deltas(
     let deltas = rows.collect::<Result<Vec<Vec<u8>>, _>>()?;
     Ok(deltas)
 }
+
+fn batch_upsert_documents(
+    conn: &mut Connection,
+    documents: Vec<UpsertDocumentInput>,
+) -> Result<Vec<LocalDocument>, AppError> {
+    let tx = conn.transaction()?;
+    let now = chrono::Utc::now().timestamp_millis();
+
+    for input in documents {
+        let user_id = input.user_id.unwrap_or_else(|| "local_guest".to_string());
+        let doc_type = input.doc_type.unwrap_or(DocumentType::Text).as_str();
+        let status = input.status.unwrap_or(DocumentStatus::Active).as_str();
+        let is_expanded = i32::from(input.is_expanded.unwrap_or(false));
+        let is_favorite = i32::from(input.is_favorite.unwrap_or(false));
+        let order = input.order.unwrap_or(0);
+        let created_at = input.created_at.unwrap_or(now);
+        let updated_at = input.updated_at.unwrap_or(now);
+
+        tx.execute(
+            "INSERT INTO local_documents (
+                id, user_id, parent_id, title, content, doc_type, status,
+                is_expanded, is_favorite, tags, display_order, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+             ON CONFLICT(id) DO UPDATE SET
+                user_id = excluded.user_id,
+                title = excluded.title,
+                content = COALESCE(excluded.content, local_documents.content),
+                parent_id = excluded.parent_id,
+                doc_type = excluded.doc_type,
+                status = excluded.status,
+                is_expanded = excluded.is_expanded,
+                is_favorite = excluded.is_favorite,
+                tags = excluded.tags,
+                display_order = excluded.display_order,
+                updated_at = excluded.updated_at",
+            params![
+                input.id,
+                user_id,
+                input.parent_id,
+                input.title,
+                input.content,
+                doc_type,
+                status,
+                is_expanded,
+                is_favorite,
+                input.tags,
+                order,
+                created_at,
+                updated_at,
+            ],
+        )?;
+    }
+
+    tx.commit()?;
+    query_documents(conn)
+}
+

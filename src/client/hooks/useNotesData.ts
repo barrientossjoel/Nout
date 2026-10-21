@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDocuments, getTrashItems, getDocument } from '../actions/actions';
 import { type Document } from '../../core/types/notes';
+import { useAuth } from '../context/AuthContext';
 
 export function useNotesData() {
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [trashItems, setTrashItems] = useState<{ documents: Document[] }>({ documents: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -10,10 +12,7 @@ export function useNotesData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [fetchedDocuments /*, fetchedTrash*/] = await Promise.all([
-        getDocuments(),
-        // getTrashItems() // implementing trash later for docs
-      ]);
+      const fetchedDocuments = await getDocuments();
 
       setDocuments(prevDocs => {
         return fetchedDocuments.map((fetchedDoc: Document) => {
@@ -24,7 +23,6 @@ export function useNotesData() {
           return fetchedDoc;
         });
       });
-      // setTrashItems(fetchedTrash);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch data'));
     } finally {
@@ -34,13 +32,17 @@ export function useNotesData() {
 
   useEffect(() => {
     fetchData();
+  }, [user, fetchData]);
 
-    // Auto-refresh when window regains focus
-    const handleFocus = () => fetchData();
-    window.addEventListener('focus', handleFocus);
+  useEffect(() => {
+    // Auto-refresh when window regains focus or when notes sync event fires
+    const handleSync = () => fetchData();
+    window.addEventListener('focus', handleSync);
+    window.addEventListener('nout:sync_notes', handleSync);
     
     return () => {
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('focus', handleSync);
+      window.removeEventListener('nout:sync_notes', handleSync);
     };
   }, [fetchData]);
 
