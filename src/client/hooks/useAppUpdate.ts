@@ -29,6 +29,19 @@ function compareVersions(v1: string, v2: string): number {
 export function useAppUpdate() {
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' });
 
+  const triggerUpdateDownload = useCallback(async (apkUrl: string, newVersion: string) => {
+    setUpdateState({ status: 'updating', newVersion });
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('trigger_app_update', { apkUrl });
+    } catch (err) {
+      setUpdateState({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'Error al iniciar la actualización automática',
+      });
+    }
+  }, []);
+
   const checkForUpdates = useCallback(async (manual = false) => {
     if (!isTauri()) {
       return;
@@ -68,6 +81,9 @@ export function useAppUpdate() {
           apkUrl,
           releaseNotes,
         });
+
+        // Actualización 100% automática: inicia la descarga directa en segundo plano
+        await triggerUpdateDownload(apkUrl, latestTag);
       } else {
         setUpdateState({ status: 'upToDate', currentVersion });
       }
@@ -81,31 +97,19 @@ export function useAppUpdate() {
         setUpdateState({ status: 'idle' });
       }
     }
-  }, []);
+  }, [triggerUpdateDownload]);
 
   const applyUpdate = useCallback(async () => {
     if (updateState.status !== 'available') return;
-
-    const { apkUrl, newVersion } = updateState;
-    setUpdateState({ status: 'updating', newVersion });
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('trigger_app_update', { apkUrl });
-    } catch (err) {
-      setUpdateState({
-        status: 'error',
-        message: err instanceof Error ? err.message : 'Error al iniciar la actualización',
-      });
-    }
-  }, [updateState]);
+    await triggerUpdateDownload(updateState.apkUrl, updateState.newVersion);
+  }, [updateState, triggerUpdateDownload]);
 
   useEffect(() => {
     if (isTauri()) {
-      // Chequeo automático en segundo plano con un leve delay tras el inicio
+      // Chequeo y actualización automática en segundo plano al arrancar la app
       const timer = setTimeout(() => {
         checkForUpdates(false).catch(() => {});
-      }, 3500);
+      }, 2500);
       return () => clearTimeout(timer);
     }
   }, [checkForUpdates]);
