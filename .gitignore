@@ -52,4 +52,5 @@ AGENTS.md
 /public/heromockup.avif
 /public/icon3.png
 /build-apk/
+/dist-apk/
 *.apk

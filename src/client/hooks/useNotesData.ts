@@ -37,12 +37,31 @@ export function useNotesData() {
   useEffect(() => {
     // Auto-refresh when window regains focus or when notes sync event fires
     const handleSync = () => fetchData();
+    const handleCloudSynced = (e: Event) => {
+      const customEvent = e as CustomEvent<Document[]>;
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setDocuments(prevDocs => {
+          return customEvent.detail.map((incomingDoc: Document) => {
+            const existingDoc = prevDocs.find(d => d.id === incomingDoc.id);
+            if (existingDoc && existingDoc.content !== undefined) {
+              return { ...incomingDoc, content: existingDoc.content };
+            }
+            return incomingDoc;
+          });
+        });
+      } else {
+        fetchData();
+      }
+    };
+
     window.addEventListener('focus', handleSync);
     window.addEventListener('nout:sync_notes', handleSync);
+    window.addEventListener('nout:cloud_synced', handleCloudSynced);
     
     return () => {
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('nout:sync_notes', handleSync);
+      window.removeEventListener('nout:cloud_synced', handleCloudSynced);
     };
   }, [fetchData]);
 

@@ -66,6 +66,10 @@ export class AuthService {
     static async getUserByEmail(email: string) {
         return await getDb().select().from(users).where(eq(users.email, email)).get();
     }
+
+    static async getUserById(userId: string) {
+        return await getDb().select().from(users).where(eq(users.id, userId)).get();
+    }
     
     static async getUserByGoogleId(googleId: string) {
         return await getDb().select().from(users).where(eq(users.googleId, googleId)).get();

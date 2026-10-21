@@ -227,4 +227,16 @@ authRouter.get('/mobile-session', async (c) => {
     return c.json({ user, token: flowId, sessionId: flowId, success: true });
 });
 
+authRouter.post('/recover-session', async (c) => {
+    const { userId } = await c.req.json();
+    if (!userId) return c.json({ error: 'Missing userId' }, 400);
+
+    const user = await AuthService.getUserById(userId);
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    const { sessionId } = await AuthService.createSession(user.id);
+    const { passwordHash, googleId, ...safeUser } = user;
+    return c.json({ user: safeUser, token: sessionId, sessionId, success: true });
+});
+
 export { authRouter };

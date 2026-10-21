@@ -4,6 +4,22 @@ Registro cronológico de hitos, refactorizaciones arquitectónicas y optimizacio
 
 ---
 
+## [1.0.5] — Sincronización Automática de Notas al Iniciar Sesión y Persistencia Robusta
+
+### ☁️ Sincronización Inmediata de Notas de la Nube (Local-First Sync)
+- **Resolución de Conflicto de Claves Foráneas SQLite (`foreign_keys = OFF` durante batch upsert):**
+  - Al sincronizar notas jerárquicas existentes de la nube, las notas anidadas (hijas con `parentId`) podían insertarse antes que sus notas padre debido al ordenamiento devuelto por la API. Esto causaba `ConstraintViolation: FOREIGN KEY constraint failed` en SQLite, abortando la transacción y dejando 0 notas guardadas localmente.
+  - Se desacoplaron las restricciones de FK temporalmente durante la inserción en bloque (`PRAGMA foreign_keys = OFF;`) y se reactivaron al consolidar (`PRAGMA foreign_keys = ON;`), permitiendo inserciones no lineales con prueba unitaria verificada.
+- **Recuperación Automática de Sesión y Token:**
+  - Implementación del endpoint `/api/auth/recover-session` y la función `ensureAuthToken()` para restaurar automáticamente tokens de sesión válidos en clientes móviles que migraron de versiones previas o persistían `nout_cloud_user` en `localStorage`.
+- **Deduplicación de Peticiones y Notificación Reactiva:**
+  - `TauriStorageAdapter` implementa deduplicación de sincronizaciones concurrentes vía `syncPromise` compartida y despacho de evento desacoplado `nout:cloud_synced`.
+  - `useNotesData` se suscribe a `nout:cloud_synced` para inyectar inmediatamente en pantalla las notas recién sincronizadas preservando cambios en memoria.
+- **Soporte Completo de Papelera en SQLite:**
+  - `query_documents` ahora expone todos los documentos para permitir filtrado flexible por estado (`active` o `deleted`) desde el adaptador.
+
+---
+
 ## [1.0.3] — Release Unificado: Google Material Design 3, Apple HIG & Auto-Updates APK
 
 ### 🔄 Actualizador Automático In-App (Android APK)

@@ -237,7 +237,6 @@ fn query_documents(conn: &Connection) -> Result<Vec<LocalDocument>, AppError> {
         "SELECT id, user_id, parent_id, title, content, doc_type, status,
                 is_expanded, is_favorite, tags, display_order, created_at, updated_at
          FROM local_documents
-         WHERE status != 'deleted'
          ORDER BY display_order ASC, created_at DESC",
     )?;
 
@@ -421,6 +420,7 @@ fn batch_upsert_documents(
     conn: &mut Connection,
     documents: Vec<UpsertDocumentInput>,
 ) -> Result<Vec<LocalDocument>, AppError> {
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
     let tx = conn.transaction()?;
     let now = chrono::Utc::now().timestamp_millis();
 
@@ -470,6 +470,54 @@ fn batch_upsert_documents(
     }
 
     tx.commit()?;
+    let _ = conn.execute_batch("PRAGMA foreign_keys = ON;");
     query_documents(conn)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_batch_upsert_out_of_order_parent() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let doc_child = UpsertDocumentInput {
+            id: "child-1".to_string(),
+            user_id: Some("user-1".to_string()),
+            parent_id: Some("parent-1".to_string()),
+            title: "Child Doc".to_string(),
+            content: Some("Child content".to_string()),
+            doc_type: None,
+            status: None,
+            is_expanded: None,
+            is_favorite: None,
+            tags: None,
+            order: None,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let doc_parent = UpsertDocumentInput {
+            id: "parent-1".to_string(),
+            user_id: Some("user-1".to_string()),
+            parent_id: None,
+            title: "Parent Doc".to_string(),
+            content: Some("Parent content".to_string()),
+            doc_type: None,
+            status: None,
+            is_expanded: None,
+            is_favorite: None,
+            tags: None,
+            order: None,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let res = batch_upsert_documents(&mut conn, vec![doc_child, doc_parent]);
+        assert!(res.is_ok(), "Batch upsert failed: {:?}", res.err());
+    }
+}
+
 

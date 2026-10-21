@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { isTauri } from '../../core/utils/platform';
-import { getApiUrl } from '../services/api';
+import { getApiUrl, ensureAuthToken } from '../services/api';
 
 export type User = {
     id: string;
@@ -32,6 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (savedCloudUser) {
                 try {
                     setUser(JSON.parse(savedCloudUser));
+                    ensureAuthToken().catch((err) =>
+                        console.warn('[AuthContext] Token recovery failed:', err)
+                    );
                 } catch {
                     setUser(null);
                 }
@@ -87,6 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newUser) {
             localStorage.setItem('nout_cloud_user', JSON.stringify(newUser));
             localStorage.removeItem('nout_guest_mode');
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('nout:sync_notes'));
+            }
         } else {
             localStorage.removeItem('nout_cloud_user');
             localStorage.removeItem('nout_auth_token');

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Document } from '../../types/notes';
 import { IDocumentStorageService } from './types';
-import { getApiUrl, getAuthHeaders, getAuthToken } from '../../../client/services/api';
+import { getApiUrl, getAuthHeaders, getAuthToken, ensureAuthToken } from '../../../client/services/api';
 
 interface RawLocalDoc {
   id: string;
@@ -20,7 +20,7 @@ interface RawLocalDoc {
 }
 
 export class TauriStorageAdapter implements IDocumentStorageService {
-  private isSyncing = false;
+  private syncPromise: Promise<Document[]> | null = null;
 
   async getDocuments(status: 'active' | 'deleted' = 'active'): Promise<Document[]> {
     let localDocs: Document[] = [];
@@ -33,7 +33,7 @@ export class TauriStorageAdapter implements IDocumentStorageService {
       console.warn('[TauriStorage] Error reading local documents:', err);
     }
 
-    const token = getAuthToken();
+    const token = await ensureAuthToken();
     const hasSavedUser = typeof window !== 'undefined' && Boolean(localStorage.getItem('nout_cloud_user'));
     const isAuthenticated = Boolean(token || hasSavedUser);
 
@@ -214,58 +214,71 @@ export class TauriStorageAdapter implements IDocumentStorageService {
   }
 
   async syncWithCloud(status: 'active' | 'deleted' = 'active'): Promise<Document[]> {
-    if (this.isSyncing) return [];
-    this.isSyncing = true;
-
-    try {
-      const headers = {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      };
-
-      const res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
-        headers,
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        return [];
-      }
-
-      const remoteDocs = await res.json();
-      if (!Array.isArray(remoteDocs) || remoteDocs.length === 0) {
-        return [];
-      }
-
-      const upsertInputs = remoteDocs.map((doc: any) => ({
-        id: doc.id,
-        userId: doc.userId,
-        parentId: doc.parentId ?? null,
-        title: doc.title || 'Sin título',
-        content: doc.content ?? null,
-        docType: doc.type ?? 'text',
-        status: doc.status ?? 'active',
-        isExpanded: Boolean(doc.isExpanded),
-        isFavorite: Boolean(doc.isFavorite),
-        tags: doc.tags ?? null,
-        order: doc.order ?? 0,
-        createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
-        updatedAt: doc.updatedAt ? new Date(doc.updatedAt).getTime() : Date.now(),
-      }));
-
-      const rawUpdated = await invoke<RawLocalDoc[]>('upsert_local_documents', {
-        documents: upsertInputs,
-      });
-
-      return rawUpdated
-        .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
-        .map(this.mapLocalDoc);
-    } catch (err) {
-      console.warn('[TauriStorage] Cloud sync error:', err);
-      return [];
-    } finally {
-      this.isSyncing = false;
+    if (this.syncPromise) {
+      return this.syncPromise;
     }
+
+    this.syncPromise = (async () => {
+      try {
+        await ensureAuthToken();
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        };
+
+        const res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
+          headers,
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          console.warn(`[TauriStorage] Cloud sync fetch failed with status ${res.status}`);
+          return [];
+        }
+
+        const remoteDocs = await res.json();
+        if (!Array.isArray(remoteDocs) || remoteDocs.length === 0) {
+          return [];
+        }
+
+        const upsertInputs = remoteDocs.map((doc: any) => ({
+          id: doc.id,
+          userId: doc.userId,
+          parentId: doc.parentId ?? null,
+          title: doc.title || 'Sin título',
+          content: doc.content ?? null,
+          docType: doc.type ?? 'text',
+          status: doc.status ?? 'active',
+          isExpanded: Boolean(doc.isExpanded),
+          isFavorite: Boolean(doc.isFavorite),
+          tags: typeof doc.tags === 'string' ? doc.tags : doc.tags ? JSON.stringify(doc.tags) : null,
+          order: doc.order ?? 0,
+          createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
+          updatedAt: doc.updatedAt ? new Date(doc.updatedAt).getTime() : Date.now(),
+        }));
+
+        const rawUpdated = await invoke<RawLocalDoc[]>('upsert_local_documents', {
+          documents: upsertInputs,
+        });
+
+        const mapped = rawUpdated
+          .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
+          .map(this.mapLocalDoc);
+
+        if (typeof window !== 'undefined' && mapped.length > 0) {
+          window.dispatchEvent(new CustomEvent('nout:cloud_synced', { detail: mapped }));
+        }
+
+        return mapped;
+      } catch (err) {
+        console.warn('[TauriStorage] Cloud sync error:', err);
+        return [];
+      } finally {
+        this.syncPromise = null;
+      }
+    })();
+
+    return this.syncPromise;
   }
 
   async saveCrdtDelta(documentId: string, delta: Uint8Array): Promise<void> {

@@ -28,6 +28,38 @@ export function getAuthHeaders(): Record<string, string> {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export async function ensureAuthToken(): Promise<string | null> {
+    const existingToken = getAuthToken();
+    if (existingToken) return existingToken;
+
+    if (typeof window === 'undefined') return null;
+    const savedUserStr = localStorage.getItem('nout_cloud_user');
+    if (!savedUserStr) return null;
+
+    try {
+        const user = JSON.parse(savedUserStr);
+        if (!user?.id) return null;
+
+        const res = await fetch(getApiUrl('/api/auth/recover-session'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id }),
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+                setAuthToken(data.token);
+                return data.token;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to recover session token:', e);
+    }
+
+    return null;
+}
+
 export type GoogleAuthCallbacks = {
     onStart?: () => void;
     onSuccess: (user: any) => void;
