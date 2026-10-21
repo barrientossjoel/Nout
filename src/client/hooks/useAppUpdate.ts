@@ -81,9 +81,6 @@ export function useAppUpdate() {
           apkUrl,
           releaseNotes,
         });
-
-        // Actualización 100% automática: inicia la descarga directa en segundo plano
-        await triggerUpdateDownload(apkUrl, latestTag);
       } else {
         setUpdateState({ status: 'upToDate', currentVersion });
       }

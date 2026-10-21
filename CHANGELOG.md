@@ -4,9 +4,16 @@ Registro cronológico de hitos, refactorizaciones arquitectónicas y optimizacio
 
 ---
 
-## [1.0.2] — Alineación Mobile Nativa: Google Material Design 3 & Apple HIG
+## [1.0.3] — Release Unificado: Google Material Design 3, Apple HIG & Auto-Updates APK
 
-### 📱 Experiencia Mobile & APK (Android)
+### 🔄 Actualizador Automático In-App (Android APK)
+- **Instalador de Paquetes Robusto:**
+  - En `MainActivity.kt`, validación previa de `canRequestPackageInstalls()` en Android 8.0+ (API 26+). Si no está habilitado, redirige a `ACTION_MANAGE_UNKNOWN_APP_SOURCES` para que el usuario active la instalación de forma asistida.
+  - Lanzamiento del instalador nativo del sistema vía `Intent(ACTION_VIEW)` con `FileProvider` y permisos `FLAG_GRANT_READ_URI_PERMISSION`.
+- **Experiencia de Usuario Controlada:**
+  - En `useAppUpdate.ts`, el banner notifica la disponibilidad de la nueva versión con notas del release y botón *"Actualizar ahora"*, evitando descargas forzadas e inesperadas.
+
+### 📱 Experiencia Mobile & APK (Google M3 & Apple HIG)
 - **Safe Area Insets & Edge-to-Edge:**
   - Soporte completo de notch, punch-hole de cámara y barra de gestos Android / Home indicator (`--safe-area-*`, `.pt-safe`, `.pb-safe`).
   - Protección de barra de estado en el contenedor principal de la aplicación (`notes-app.tsx`).

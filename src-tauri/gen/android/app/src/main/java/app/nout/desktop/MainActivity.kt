@@ -1,14 +1,11 @@
 package app.nout.desktop
 
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.FileProvider
@@ -109,67 +106,23 @@ class MainActivity : TauriActivity() {
       return
     }
 
-    // Attempt PackageInstaller self-update (API 31+ allows non-interactive updates)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      try {
-        val packageInstaller = packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-          setAppPackageName(packageName)
-          setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-        }
-
-        val sessionId = packageInstaller.createSession(params)
-        val session = packageInstaller.openSession(sessionId)
-
-        file.inputStream().use { input ->
-          session.openWrite("nout_update", 0, file.length()).use { output ->
-            input.copyTo(output)
-            session.fsync(output)
-          }
-        }
-
-        val action = "$packageName.ACTION_INSTALL_COMMIT"
-        val intent = Intent(action).setPackage(packageName)
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        val pendingIntent = PendingIntent.getBroadcast(this, sessionId, intent, flags)
-
-        val receiver = object : BroadcastReceiver() {
-          override fun onReceive(context: Context, resIntent: Intent) {
-            if (resIntent.action == action) {
-              val status = resIntent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
-              if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                  resIntent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                } else {
-                  @Suppress("DEPRECATION")
-                  resIntent.getParcelableExtra(Intent.EXTRA_INTENT)
-                }
-                confirmIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                confirmIntent?.let { startActivity(it) }
-              }
-              try {
-                unregisterReceiver(this)
-              } catch (_: Exception) {}
-            }
-          }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          registerReceiver(receiver, IntentFilter(action), RECEIVER_EXPORTED)
-        } else {
-          registerReceiver(receiver, IntentFilter(action))
-        }
-
-        session.commit(pendingIntent.intentSender)
-        session.close()
-        return
-      } catch (e: Exception) {
-        Log.w(TAG, "PackageInstaller session failed, falling back to FileProvider intent: ${e.message}")
-      }
-    }
-
-    // Standard fallback: Intent ACTION_VIEW via FileProvider
     try {
+      // 1. En Android 8.0+ (API 26+), validar si la app tiene permiso para instalar paquetes desconocidos
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (!packageManager.canRequestPackageInstalls()) {
+          Log.i(TAG, "Permiso canRequestPackageInstalls no otorgado. Abriendo ajustes del sistema...")
+          val settingsIntent = Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:$packageName")
+          ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          }
+          startActivity(settingsIntent)
+          return
+        }
+      }
+
+      // 2. Abrir el instalador oficial de paquetes de Android vía FileProvider
       val apkUri = FileProvider.getUriForFile(
         this,
         "$packageName.fileprovider",
@@ -182,9 +135,9 @@ class MainActivity : TauriActivity() {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       startActivity(installIntent)
+      Log.i(TAG, "Instalador del sistema iniciado con éxito")
     } catch (e: Exception) {
-      Log.e(TAG, "Fallback install intent failed: ${e.message}", e)
+      Log.e(TAG, "Error al iniciar el instalador de Android: ${e.message}", e)
     }
   }
 }
-
