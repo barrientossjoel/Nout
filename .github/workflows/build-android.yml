@@ -57,18 +57,18 @@ jobs:
         env:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          bun run tauri android build --target aarch64 --apk --ci --debug
+          bun run tauri android build --target aarch64 --apk --ci
 
       - name: Prepare APK Artifact
         run: |
           mkdir -p dist-apk
-          cp src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk dist-apk/nout-arm64-debug.apk
+          cp src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk dist-apk/nout-arm64.apk
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nout-arm64-debug
-          path: dist-apk/nout-arm64-debug.apk
+          name: nout-arm64
+          path: dist-apk/nout-arm64.apk
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
@@ -78,10 +78,10 @@ jobs:
           name: Release ${{ steps.app-version.outputs.tag }}
           body: |
             ## Nout ${{ steps.app-version.outputs.tag }}
-            - Compilación automática generada con cada push a `main`.
-            - APK listo para instalar y compatible con auto-actualizador in-app.
+            - Compilación de producción con frontend embebido y auto-actualizador in-app.
+            - Compatible con Android 8.0+ (ARM64).
           draft: false
           prerelease: false
-          files: dist-apk/nout-arm64-debug.apk
+          files: dist-apk/nout-arm64.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
