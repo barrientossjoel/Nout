@@ -4,6 +4,18 @@ Registro cronológico de hitos, refactorizaciones arquitectónicas y optimizacio
 
 ---
 
+## [1.0.6] — Descarga Completa de Contenido de Notas, Canvases y Sincronización de Quick Notes
+
+### 📝 Descarga de Contenido Completo de Documentos en la Sincronización Inicial
+- **Inclusión de `content` en `GET /api/documents`:**
+  - El endpoint de listado excluía el campo `content`, provocando que todas las notas sincronizadas se guardaran en SQLite con `content: null`. Se incluyó `documents.content` en la proyección para que todo el texto Markdown, datos de canvas y referencias de PDF se descarguen y persistan localmente en el dispositivo.
+- **Fallback Activo en `getDocument(id)` de Tauri:**
+  - Si un documento en SQLite carece de contenido, `TauriStorageAdapter.getDocument` consulta a la API con `ensureAuthToken()`, actualiza SQLite local y devuelve el documento completo.
+- **Sincronización Nativa del Panel de Quick Notes (`/api/messages`):**
+  - Se adaptaron todas las llamadas del panel de notas rápidas, memos de voz y destacados (`notes-panel.tsx`) para usar `getApiUrl()` y cabeceras de autenticación con Bearer token en entornos móviles, resolviendo el problema donde los mensajes y notas rápidas de la nube no se mostraban.
+
+---
+
 ## [1.0.5] — Sincronización Automática de Notas al Iniciar Sesión y Persistencia Robusta
 
 ### ☁️ Sincronización Inmediata de Notas de la Nube (Local-First Sync)

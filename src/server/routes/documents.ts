@@ -33,6 +33,7 @@ documentsRouter.get('/', requireAuth, async (c) => {
             id: documents.id,
             userId: documents.userId,
             title: documents.title,
+            content: documents.content,
             parentId: documents.parentId,
             status: documents.status,
             isExpanded: documents.isExpanded,

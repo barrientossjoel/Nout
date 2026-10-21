@@ -70,8 +70,8 @@ export class TauriStorageAdapter implements IDocumentStorageService {
       // Document might not be stored locally yet
     }
 
-    const token = getAuthToken();
-    const headers = getAuthHeaders();
+    await ensureAuthToken();
+    const headers = { ...getAuthHeaders() };
 
     try {
       const res = await fetch(getApiUrl(`/api/documents/${id}`), {
@@ -92,7 +92,7 @@ export class TauriStorageAdapter implements IDocumentStorageService {
             status: remoteDoc.status ?? 'active',
             isExpanded: Boolean(remoteDoc.isExpanded),
             isFavorite: Boolean(remoteDoc.isFavorite),
-            tags: remoteDoc.tags ?? null,
+            tags: typeof remoteDoc.tags === 'string' ? remoteDoc.tags : remoteDoc.tags ? JSON.stringify(remoteDoc.tags) : null,
             order: remoteDoc.order ?? 0,
             createdAt: remoteDoc.createdAt ? new Date(remoteDoc.createdAt).getTime() : Date.now(),
             updatedAt: remoteDoc.updatedAt ? new Date(remoteDoc.updatedAt).getTime() : Date.now(),

@@ -14,6 +14,7 @@ import {
 } from '../../../components/ui/dropdown-menu';
 import type { Document } from '../../../../core/types/notes';
 import { FileText } from 'lucide-react';
+import { getApiUrl, getAuthHeaders, ensureAuthToken } from '../../../services/api';
 
 interface NotesPanelProps {
     documentId?: string | null;
@@ -52,8 +53,12 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
     const fetchMessages = React.useCallback(async () => {
         setIsLoading(true);
         try {
+            await ensureAuthToken();
             const query = documentId ? `?documentId=${documentId}` : '';
-            const res = await fetch(`/api/messages${query}`);
+            const res = await fetch(getApiUrl(`/api/messages${query}`), {
+                headers: { ...getAuthHeaders() },
+                credentials: 'include',
+            });
             if (res.ok) {
                 const data = await res.json();
                 setMessages(prev => {
@@ -108,9 +113,14 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
         scrollToBottom();
 
         try {
-            const res = await fetch('/api/messages', {
+            await ensureAuthToken();
+            const res = await fetch(getApiUrl('/api/messages'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
+                },
+                credentials: 'include',
                 body: JSON.stringify({ content: msgContent, documentId, type }),
             });
 
@@ -190,9 +200,14 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
         setEditingId(null);
 
         try {
-            const res = await fetch(`/api/messages/${msg.id}`, {
+            await ensureAuthToken();
+            const res = await fetch(getApiUrl(`/api/messages/${msg.id}`), {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
+                },
+                credentials: 'include',
                 body: JSON.stringify({ content: editContent }),
             });
             if (!res.ok) {
@@ -208,8 +223,11 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
         setMessages(prev => prev.filter(m => m.id !== id));
 
         try {
-            const res = await fetch(`/api/messages/${id}`, {
+            await ensureAuthToken();
+            const res = await fetch(getApiUrl(`/api/messages/${id}`), {
                 method: 'DELETE',
+                headers: { ...getAuthHeaders() },
+                credentials: 'include',
             });
             if (!res.ok) {
                 console.error('Failed to delete message');
