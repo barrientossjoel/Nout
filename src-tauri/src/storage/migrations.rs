@@ -1,6 +1,11 @@
 use rusqlite::Connection;
 use crate::error::AppError;
 
+/// Executes initial and pending database schema migrations on the given SQLite connection.
+///
+/// # Errors
+///
+/// Returns [`AppError::Database`] if executing schema creation statements fails.
 pub fn run_migrations(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "

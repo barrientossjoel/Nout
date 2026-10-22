@@ -5,16 +5,15 @@ import { Send, Maximize2, MoreHorizontal, Copy, Trash2, Pencil, Check, X, Mic, S
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { cn } from '../../../lib/utils/utils';
-import type { Message } from '../../../../core/types/notes';
+import type { Message, Document } from '../../../../core/types/notes';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
-import type { Document } from '../../../../core/types/notes';
 import { FileText } from 'lucide-react';
-import { getApiUrl, getAuthHeaders, ensureAuthToken } from '../../../services/api';
+import { useMessages } from '../../../hooks/useMessages';
 
 interface NotesPanelProps {
     documentId?: string | null;
@@ -27,22 +26,15 @@ interface NotesPanelProps {
     onHighlightClick?: (ref: string) => void;
 }
 
-export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose, documents = [], onNavigate, onHighlightClick }: NotesPanelProps) {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editContent, setEditContent] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
-    const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
-    const [recordingTime, setRecordingTime] = useState(0);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+interface AddNoteContentDetail {
+    documentId?: string;
+    content: string;
+    autoSend?: boolean;
+}
 
-    // Mention state
-    const [mentionFilter, setMentionFilter] = useState<string | null>(null);
-    const [selectedIndex, setSelectedIndex] = useState(0);
+export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose, documents = [], onNavigate, onHighlightClick }: NotesPanelProps) {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const scrollToBottom = React.useCallback(() => {
         if (scrollRef.current) {
@@ -50,129 +42,56 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
         }
     }, []);
 
-    const fetchMessages = React.useCallback(async () => {
-        setIsLoading(true);
-        try {
-            await ensureAuthToken();
-            const query = documentId ? `?documentId=${documentId}` : '';
-            const res = await fetch(getApiUrl(`/api/messages${query}`), {
-                headers: { ...getAuthHeaders() },
-                credentials: 'include',
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setMessages(prev => {
-                    const tempMessages = prev.filter(m => m.id.startsWith('temp-'));
-                    return [...data, ...tempMessages];
-                });
-                scrollToBottom();
-            }
-        } catch (error) {
-            console.error('Failed to fetch messages', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [documentId, scrollToBottom]);
+    const {
+        messages,
+        isLoading,
+        sendMessage,
+        editMessage,
+        deleteMessage,
+        isRecording,
+        recordingTime,
+        startRecording,
+        stopRecording,
+    } = useMessages({
+        documentId,
+        onMessageSent: scrollToBottom,
+    });
+
+    const [newMessage, setNewMessage] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editContent, setEditContent] = useState('');
+
+    // Mention state
+    const [mentionFilter, setMentionFilter] = useState<string | null>(null);
+    const [selectedIndex, setSelectedIndex] = useState(0);
 
     useEffect(() => {
-        fetchMessages();
-    }, [documentId]);
-
-    useEffect(() => {
-        const handleAddContent = (e: any) => {
-            const { documentId: msgDocId, content, autoSend } = e.detail;
+        const handleAddContent = (e: Event) => {
+            const customEvent = e as CustomEvent<AddNoteContentDetail>;
+            const { documentId: msgDocId, content, autoSend } = customEvent.detail ?? {};
 
             // Only process if the event is for THIS document
             if (msgDocId && msgDocId !== documentId) return;
 
             if (autoSend) {
-                handleSendMessage(undefined, content);
+                void sendMessage(content);
             } else {
                 setNewMessage(content);
             }
         };
+
         window.addEventListener('add-note-content', handleAddContent);
         return () => window.removeEventListener('add-note-content', handleAddContent);
-    }, [documentId]);
+    }, [documentId, sendMessage]);
 
     const handleSendMessage = React.useCallback(async (e?: React.FormEvent, content?: string, type: 'text' | 'audio' = 'text') => {
         if (e) e.preventDefault();
         const msgContent = content || newMessage;
         if (!msgContent.trim()) return;
 
-        const optimisticMessage: Message & { type: string } = {
-            id: 'temp-' + Date.now(),
-            content: msgContent,
-            type,
-            documentId: documentId,
-            createdAt: new Date().toISOString(),
-        };
-
-        setMessages(prev => [...prev, optimisticMessage]);
         if (!content) setNewMessage('');
-        scrollToBottom();
-
-        try {
-            await ensureAuthToken();
-            const res = await fetch(getApiUrl('/api/messages'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeaders(),
-                },
-                credentials: 'include',
-                body: JSON.stringify({ content: msgContent, documentId, type }),
-            });
-
-            if (res.ok) {
-                const savedMessage = await res.json();
-                setMessages(prev => prev.map(m => m.id === optimisticMessage.id ? savedMessage : m));
-            } else {
-                console.error('Failed to save message');
-            }
-        } catch (error) {
-            console.error('Error sending message', error);
-        }
-    }, [newMessage, documentId, scrollToBottom]);
-
-    const startRecording = React.useCallback(async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
-            const chunks: BlobPart[] = [];
-
-            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64data = reader.result as string;
-                    handleSendMessage(undefined, base64data, 'audio');
-                };
-                reader.readAsDataURL(blob);
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            setRecorder(mediaRecorder);
-            setIsRecording(true);
-            setRecordingTime(0);
-            timerRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
-            }, 1000);
-        } catch (error) {
-            console.error('Failed to start recording', error);
-        }
-    }, [handleSendMessage]);
-
-    const stopRecording = React.useCallback(() => {
-        if (recorder) {
-            recorder.stop();
-            setRecorder(null);
-            setIsRecording(false);
-            if (timerRef.current) clearInterval(timerRef.current);
-        }
-    }, [recorder]);
+        await sendMessage(msgContent, type);
+    }, [newMessage, sendMessage]);
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -195,47 +114,14 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
             return;
         }
 
-        // Optimistic update
-        setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, content: editContent } : m));
+        const nextContent = editContent;
         setEditingId(null);
-
-        try {
-            await ensureAuthToken();
-            const res = await fetch(getApiUrl(`/api/messages/${msg.id}`), {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeaders(),
-                },
-                credentials: 'include',
-                body: JSON.stringify({ content: editContent }),
-            });
-            if (!res.ok) {
-                console.error('Failed to update message');
-            }
-        } catch (error) {
-            console.error('Error updating message', error);
-        }
-    }, [editContent]);
+        await editMessage(msg.id, nextContent);
+    }, [editContent, editMessage]);
 
     const handleDelete = React.useCallback(async (id: string) => {
-        // Optimistic delete
-        setMessages(prev => prev.filter(m => m.id !== id));
-
-        try {
-            await ensureAuthToken();
-            const res = await fetch(getApiUrl(`/api/messages/${id}`), {
-                method: 'DELETE',
-                headers: { ...getAuthHeaders() },
-                credentials: 'include',
-            });
-            if (!res.ok) {
-                console.error('Failed to delete message');
-            }
-        } catch (error) {
-            console.error('Error deleting message', error);
-        }
-    }, []);
+        await deleteMessage(id);
+    }, [deleteMessage]);
 
     const filteredDocs = React.useMemo(() => {
         return documents.filter(doc =>

@@ -51,6 +51,13 @@ pub struct DatabaseHandle {
 }
 
 impl DatabaseHandle {
+    /// Creates a new `DatabaseHandle` by opening the SQLite database at `db_path`,
+    /// running pending migrations, and spawning the dedicated worker thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::Database`] or [`AppError::Io`] if opening the database,
+    /// applying migrations, or spawning the worker thread fails.
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, AppError> {
         let conn = Connection::open(db_path)?;
         run_migrations(&conn)?;
@@ -70,6 +77,11 @@ impl DatabaseHandle {
         Ok(Self { sender })
     }
 
+    /// Fetches all non-deleted local documents ordered by display order and creation date.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if querying the database or channel communication fails.
     pub async fn get_documents(&self) -> Result<Vec<LocalDocument>, AppError> {
         let (responder, receiver) = oneshot::channel();
         self.sender
@@ -81,10 +93,18 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
-    pub async fn get_document(&self, id: String) -> Result<LocalDocument, AppError> {
+    /// Fetches a single local document by its unique ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::DocumentNotFound`] if not found, or [`AppError`] on query failure.
+    pub async fn get_document(&self, id: &str) -> Result<LocalDocument, AppError> {
         let (responder, receiver) = oneshot::channel();
         self.sender
-            .send(DbMessage::GetDocument { id, responder })
+            .send(DbMessage::GetDocument {
+                id: id.to_string(),
+                responder,
+            })
             .await
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
         receiver
@@ -92,6 +112,11 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
+    /// Inserts a new document into the database.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if insertion or database execution fails.
     pub async fn create_document(
         &self,
         input: CreateDocumentInput,
@@ -106,6 +131,11 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
+    /// Updates existing document fields in local storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if the document is not found or update fails.
     pub async fn update_document(
         &self,
         input: UpdateDocumentInput,
@@ -120,10 +150,18 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
-    pub async fn delete_document(&self, id: String) -> Result<(), AppError> {
+    /// Marks a document as deleted.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if the update fails.
+    pub async fn delete_document(&self, id: &str) -> Result<(), AppError> {
         let (responder, receiver) = oneshot::channel();
         self.sender
-            .send(DbMessage::DeleteDocument { id, responder })
+            .send(DbMessage::DeleteDocument {
+                id: id.to_string(),
+                responder,
+            })
             .await
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
         receiver
@@ -131,15 +169,20 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
+    /// Saves a binary CRDT update delta for a document.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if delta insertion fails.
     pub async fn save_crdt_delta(
         &self,
-        document_id: String,
+        document_id: &str,
         delta: Vec<u8>,
     ) -> Result<(), AppError> {
         let (responder, receiver) = oneshot::channel();
         self.sender
             .send(DbMessage::SaveCrdtDelta {
-                document_id,
+                document_id: document_id.to_string(),
                 delta,
                 responder,
             })
@@ -150,14 +193,19 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
+    /// Retrieves all CRDT update deltas for a document in ascending sequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if querying deltas fails.
     pub async fn get_crdt_deltas(
         &self,
-        document_id: String,
+        document_id: &str,
     ) -> Result<Vec<Vec<u8>>, AppError> {
         let (responder, receiver) = oneshot::channel();
         self.sender
             .send(DbMessage::GetCrdtDeltas {
-                document_id,
+                document_id: document_id.to_string(),
                 responder,
             })
             .await
@@ -167,6 +215,11 @@ impl DatabaseHandle {
             .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
     }
 
+    /// Atomically upserts an array of documents into local storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if batch execution fails.
     pub async fn upsert_documents(
         &self,
         documents: Vec<UpsertDocumentInput>,
@@ -244,10 +297,27 @@ fn query_documents(conn: &Connection) -> Result<Vec<LocalDocument>, AppError> {
         let doc_type_str: String = row.get(5)?;
         let status_str: String = row.get(6)?;
 
-        let doc_type = DocumentType::from_str_opt(&doc_type_str)
-            .unwrap_or(DocumentType::Text);
-        let status = DocumentStatus::from_str_opt(&status_str)
-            .unwrap_or(DocumentStatus::Active);
+        let doc_type = DocumentType::from_str_opt(&doc_type_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
+                5,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unknown doc_type: {doc_type_str}"),
+                )),
+            )
+        })?;
+
+        let status = DocumentStatus::from_str_opt(&status_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
+                6,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unknown status: {status_str}"),
+                )),
+            )
+        })?;
 
         let is_expanded_int: i32 = row.get(7)?;
         let is_favorite_int: i32 = row.get(8)?;
@@ -285,10 +355,27 @@ fn query_document_by_id(conn: &Connection, id: &str) -> Result<LocalDocument, Ap
         let doc_type_str: String = row.get(5)?;
         let status_str: String = row.get(6)?;
 
-        let doc_type = DocumentType::from_str_opt(&doc_type_str)
-            .unwrap_or(DocumentType::Text);
-        let status = DocumentStatus::from_str_opt(&status_str)
-            .unwrap_or(DocumentStatus::Active);
+        let doc_type = DocumentType::from_str_opt(&doc_type_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
+                5,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unknown doc_type: {doc_type_str}"),
+                )),
+            )
+        })?;
+
+        let status = DocumentStatus::from_str_opt(&status_str).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
+                6,
+                rusqlite::types::Type::Text,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unknown status: {status_str}"),
+                )),
+            )
+        })?;
 
         let is_expanded_int: i32 = row.get(7)?;
         let is_favorite_int: i32 = row.get(8)?;
@@ -416,18 +503,47 @@ fn query_crdt_deltas(
     Ok(deltas)
 }
 
+fn sort_documents_topologically(mut docs: Vec<UpsertDocumentInput>) -> Vec<UpsertDocumentInput> {
+    let batch_ids: std::collections::HashSet<String> = docs.iter().map(|d| d.id.clone()).collect();
+    let mut resolved_ids = std::collections::HashSet::new();
+    let mut sorted = Vec::with_capacity(docs.len());
+
+    while !docs.is_empty() {
+        let (ready, pending): (Vec<_>, Vec<_>) = docs.into_iter().partition(|doc| {
+            match &doc.parent_id {
+                None => true,
+                Some(parent_id) => !batch_ids.contains(parent_id) || resolved_ids.contains(parent_id),
+            }
+        });
+
+        if ready.is_empty() {
+            // Resolve any circular references or deadlocks by appending remaining docs
+            sorted.extend(pending);
+            break;
+        }
+
+        for doc in &ready {
+            resolved_ids.insert(doc.id.clone());
+        }
+        sorted.extend(ready);
+        docs = pending;
+    }
+
+    sorted
+}
+
 fn batch_upsert_documents(
     conn: &mut Connection,
     documents: Vec<UpsertDocumentInput>,
 ) -> Result<Vec<LocalDocument>, AppError> {
-    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    let sorted_documents = sort_documents_topologically(documents);
     let tx = conn.transaction()?;
     let now = chrono::Utc::now().timestamp_millis();
 
-    for input in documents {
+    for input in sorted_documents {
         let user_id = input.user_id.unwrap_or_else(|| "local_guest".to_string());
-        let doc_type = input.doc_type.unwrap_or(DocumentType::Text).as_str();
-        let status = input.status.unwrap_or(DocumentStatus::Active).as_str();
+        let doc_type = input.doc_type.map_or("text", DocumentType::as_str);
+        let status = input.status.map_or("active", DocumentStatus::as_str);
         let is_expanded = i32::from(input.is_expanded.unwrap_or(false));
         let is_favorite = i32::from(input.is_favorite.unwrap_or(false));
         let order = input.order.unwrap_or(0);
@@ -470,7 +586,6 @@ fn batch_upsert_documents(
     }
 
     tx.commit()?;
-    let _ = conn.execute_batch("PRAGMA foreign_keys = ON;");
     query_documents(conn)
 }
 

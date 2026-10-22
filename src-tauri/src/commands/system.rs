@@ -46,8 +46,13 @@ pub fn pick_vault_folder() -> Option<String> {
     }
 }
 
-#[tauri::command]
+/// Retrieves the default vault folder for the application.
+///
+/// # Errors
+///
+/// Returns [`AppError::Internal`] if the system documents directory cannot be resolved.
 #[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
 pub fn get_default_vault_folder(app: tauri::AppHandle) -> Result<String, AppError> {
     let docs = app
         .path()
@@ -57,17 +62,20 @@ pub fn get_default_vault_folder(app: tauri::AppHandle) -> Result<String, AppErro
     Ok(vault.to_string_lossy().to_string())
 }
 
+/// Triggers an in-app update on Android by passing the APK URL to `MainActivity`.
+///
+/// # Errors
+///
+/// Returns [`AppError::Internal`] if the JVM or JNI call fails on Android.
 #[tauri::command]
-#[allow(clippy::needless_pass_by_value)]
-pub fn trigger_app_update(app: tauri::AppHandle, apk_url: String) -> Result<(), AppError> {
+pub fn trigger_app_update(apk_url: &str) -> Result<(), AppError> {
     #[cfg(target_os = "android")]
     {
-        let _ = app;
-        android_update(&apk_url)
+        android_update(apk_url)
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (app, apk_url);
+        let _ = apk_url;
         Ok(())
     }
 }
@@ -102,17 +110,20 @@ fn android_update(apk_url: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Opens an external URL via Chrome Custom Tabs on Android, or default handler.
+///
+/// # Errors
+///
+/// Returns [`AppError::Internal`] if the URL invocation fails.
 #[tauri::command]
-#[allow(clippy::needless_pass_by_value)]
-pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), AppError> {
+pub fn open_external_url(url: &str) -> Result<(), AppError> {
     #[cfg(target_os = "android")]
     {
-        let _ = app;
-        android_open_url(&url)
+        android_open_url(url)
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (app, url);
+        let _ = url;
         Ok(())
     }
 }
@@ -147,6 +158,11 @@ fn android_open_url(url: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Retrieves any pending deep link (`nout://...`) from Android activity intent.
+///
+/// # Errors
+///
+/// Returns [`AppError::Internal`] if JNI bridge interaction fails.
 #[tauri::command]
 pub fn get_pending_deep_link() -> Result<Option<String>, AppError> {
     #[cfg(target_os = "android")]

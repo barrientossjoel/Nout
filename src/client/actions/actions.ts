@@ -1,10 +1,11 @@
 import { client } from '../services/api';
 import { getDocumentStorage } from '../../core/services/storage';
+import type { Document } from '../../core/types/notes';
 
 // @ts-ignore
 const api = client.api;
 
-const mapItem = (item: any) => ({
+const mapItem = <T extends { createdAt?: string | number | Date | null }>(item: T) => ({
     ...item,
     date: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
 });
@@ -37,11 +38,11 @@ export async function getPublicDocument(id: string) {
     throw new Error('Failed to fetch public document');
 }
 
-export async function createDocument(data: any) {
+export async function createDocument(data: Partial<Document>): Promise<Document> {
     return getDocumentStorage().createDocument(data);
 }
 
-export async function updateDocument(id: string, data: any) {
+export async function updateDocument(id: string, data: Partial<Document>): Promise<Document> {
     return getDocumentStorage().updateDocument(id, data);
 }
 
