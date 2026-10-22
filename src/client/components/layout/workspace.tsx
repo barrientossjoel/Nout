@@ -726,7 +726,7 @@ export function Workspace({
                     iframe, canvas, [data-page-number] { pointer-events: none !important; }
                 `}</style>
             )}
-            <div className={cn("flex-1 h-full overflow-hidden flex flex-col", isMobile && "pb-16")}>
+            <div className="flex-1 h-full overflow-hidden flex flex-col">
                 {renderNode(layout)}
             </div>
 

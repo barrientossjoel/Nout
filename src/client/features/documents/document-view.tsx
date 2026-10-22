@@ -121,13 +121,15 @@ export function DocumentView({
     }, [subdocsChildrenMap, document.id])
 
     const renderSubdocs = (targetSnap: SnapPosition) => {
-        if (!hasSubdocs || subdocsSnap !== targetSnap) return null
+        if (!hasSubdocs) return null
+        const activeSnap = isMobile ? 'center' : subdocsSnap
+        if (activeSnap !== targetSnap) return null
         return (
             <SubdocsPanel
                 documents={documents}
                 parentId={document.id}
                 onOpenDocument={onOpenDocument}
-                snap={subdocsSnap}
+                snap={activeSnap}
                 onSnapChange={persistSubdocsSnap}
                 panelWidth={subdocsPanelWidth}
                 collapsed={subdocsCollapsed}
@@ -391,14 +393,6 @@ export function DocumentView({
                     )}
                 </div>
 
-                {isMobile && (
-                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center max-w-[40%] pointer-events-none">
-                        <span className="text-xs font-semibold truncate text-foreground/90">
-                            {title || t('untitledDocument')}
-                        </span>
-                    </div>
-                )}
-
                 <div className="flex items-center gap-1">
                     {isMobile ? (
                         <span className="text-[11px] text-muted-foreground flex items-center gap-1 mr-1">
@@ -576,17 +570,26 @@ export function DocumentView({
                     <div className="max-w-3xl mx-auto py-8 px-4 lg:px-8 min-h-full pb-[50vh]">
                         <div className="space-y-6">
                             {isEditing ? (
-                                <Input
+                                <textarea
                                     value={title}
+                                    rows={1}
+                                    ref={(el) => {
+                                        if (el) {
+                                            el.style.height = 'auto';
+                                            el.style.height = `${el.scrollHeight}px`;
+                                        }
+                                    }}
                                     onChange={(e) => {
                                         setTitle(e.target.value);
+                                        e.target.style.height = 'auto';
+                                        e.target.style.height = `${e.target.scrollHeight}px`;
                                         onUpdateDocument({ ...document, title: e.target.value });
                                     }}
-                                    className="text-4xl font-bold border-none bg-transparent px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0 ring-0 focus:ring-0 outline-none shadow-none placeholder:text-muted-foreground/30 w-full"
+                                    className="text-2xl sm:text-3xl md:text-4xl font-bold border-none bg-transparent px-0 focus:outline-none focus:ring-0 ring-0 shadow-none placeholder:text-muted-foreground/30 w-full resize-none overflow-hidden leading-tight break-words"
                                     placeholder={t('untitledDocument')}
                                 />
                             ) : (
-                                <h1 className="text-4xl font-bold min-h-[1.2em]">{title || t('untitledDocument')}</h1>
+                                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold min-h-[1.2em] leading-tight break-words">{title || t('untitledDocument')}</h1>
                             )}
 
                             {renderSubdocs('center')}

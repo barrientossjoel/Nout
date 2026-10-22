@@ -357,14 +357,14 @@ function NotesAppInner() {
               }}
             />
           </div>
-          <main className={cn(
-            "flex-1 overflow-hidden bg-background flex flex-col relative",
-            isMobile && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
-          )}>
-            {(() => {
-              const activeDoc = documents.find(d => d.id === currentView)
+          {(() => {
+            const isInsideDoc = isMobile && documents.some(d => d.id === currentView)
 
-              return (
+            return (
+              <main className={cn(
+                "flex-1 overflow-hidden bg-background flex flex-col relative",
+                isMobile && !isInsideDoc && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
+              )}>
                 <Workspace
                   layout={layout}
                   documents={documents}
@@ -379,51 +379,51 @@ function NotesAppInner() {
                   onToggleSidebar={() => setShowSidebar(prev => !prev)}
                   refreshDocuments={refresh}
                 />
-              )
-            })()}
 
-            {/* Mobile Navigation */}
-            {isMobile && (() => {
-              const activePane = findLayoutNode(layout, activePaneId) || findLayoutNode(layout, findFirstPaneId(layout) || '')
-              const activeTabs = activePane?.type === 'pane' ? (activePane.tabs || []) : []
+                {/* Mobile Navigation Bar & FAB: only rendered on root dashboard/views, hidden inside documents */}
+                {isMobile && !isInsideDoc && (() => {
+                  const activePane = findLayoutNode(layout, activePaneId) || findLayoutNode(layout, findFirstPaneId(layout) || '')
+                  const activeTabs = activePane?.type === 'pane' ? (activePane.tabs || []) : []
 
-              return (
-                <MobileNav
-                  currentView={currentView}
-                  documents={documents}
-                  tabs={activeTabs}
-                  onSelectTab={(id) => handleNavigate(id)}
-                  onCloseTab={(id) => {
-                    if (activePane?.id) {
-                      const newLayout = closeTab(layout, activePane.id, id)
-                      setLayout(newLayout)
-                    }
-                  }}
-                  onNavigate={(view) => {
-                    if (view === 'search') {
-                      setIsSearchOpen(true)
-                      if (isMobile) setShowSidebar(false)
-                    } else {
-                      handleNavigate(view, false, true)
-                    }
-                  }}
-                  onToggleSidebar={() => setShowSidebar(prev => !prev)}
-                  onCreateDocument={(type) => handleCreateDocument(null, type)}
-                  onOpenSettings={() => {
-                    setIsSettingsOpen(true)
-                    if (isMobile) setShowSidebar(false)
-                  }}
-                  onPinTab={(id: string, pinned: boolean) => {
-                    if (activePane?.id) {
-                      const newLayout = pinTab(layout, activePane.id, id, pinned)
-                      setLayout(newLayout)
-                    }
-                  }}
-                  previewTabId={activePane?.type === 'pane' ? activePane.previewTabId : null}
-                />
-              )
-            })()}
-          </main>
+                  return (
+                    <MobileNav
+                      currentView={currentView}
+                      documents={documents}
+                      tabs={activeTabs}
+                      onSelectTab={(id) => handleNavigate(id)}
+                      onCloseTab={(id) => {
+                        if (activePane?.id) {
+                          const newLayout = closeTab(layout, activePane.id, id)
+                          setLayout(newLayout)
+                        }
+                      }}
+                      onNavigate={(view) => {
+                        if (view === 'search') {
+                          setIsSearchOpen(true)
+                          if (isMobile) setShowSidebar(false)
+                        } else {
+                          handleNavigate(view, false, true)
+                        }
+                      }}
+                      onToggleSidebar={() => setShowSidebar(prev => !prev)}
+                      onCreateDocument={(type) => handleCreateDocument(null, type)}
+                      onOpenSettings={() => {
+                        setIsSettingsOpen(true)
+                        if (isMobile) setShowSidebar(false)
+                      }}
+                      onPinTab={(id: string, pinned: boolean) => {
+                        if (activePane?.id) {
+                          const newLayout = pinTab(layout, activePane.id, id, pinned)
+                          setLayout(newLayout)
+                        }
+                      }}
+                      previewTabId={activePane?.type === 'pane' ? activePane.previewTabId : null}
+                    />
+                  )
+                })()}
+              </main>
+            )
+          })()}
         </div>
       </div>
       <SearchCommand
