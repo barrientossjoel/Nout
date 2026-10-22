@@ -52,10 +52,7 @@ export function NotesPanel({ documentId, title, className, onOpenAsTab, onClose,
         recordingTime,
         startRecording,
         stopRecording,
-    } = useMessages({
-        documentId,
-        onMessageSent: scrollToBottom,
-    });
+    } = useMessages(documentId, scrollToBottom);
 
     const [newMessage, setNewMessage] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);

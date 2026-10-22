@@ -1,118 +1,80 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Document } from '../../types/notes';
-import { IDocumentStorageService } from './types';
-import { getApiUrl, getAuthHeaders, getAuthToken, setAuthToken, ensureAuthToken } from '../../../client/services/api';
+import type { Document } from '../../types/notes';
+import type { IDocumentStorageService } from './types';
+import { client, getAuthToken } from '../../../client/services/api';
 
-interface RawLocalDoc {
-  id: string;
-  userId?: string;
-  title: string;
-  content?: string | null;
-  parentId?: string | null;
-  status?: 'active' | 'deleted' | 'archived';
-  isExpanded?: boolean;
-  isFavorite?: boolean;
-  tags?: string | null;
-  order?: number;
-  docType?: 'text' | 'canvas' | 'pdf' | 'epub';
-  createdAt?: number | string;
-  updatedAt?: number | string;
-}
+// @ts-ignore - Hono RPC client
+const api = client.api;
+
+const toUpsertInput = (doc: any) => ({
+  id: doc.id,
+  userId: doc.userId,
+  parentId: doc.parentId ?? null,
+  title: doc.title || 'Sin título',
+  content: doc.content ?? null,
+  docType: doc.type ?? 'text',
+  status: doc.status ?? 'active',
+  isExpanded: Boolean(doc.isExpanded),
+  isFavorite: Boolean(doc.isFavorite),
+  tags: typeof doc.tags === 'string' ? doc.tags : doc.tags ? JSON.stringify(doc.tags) : null,
+  order: doc.order ?? 0,
+  createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
+  updatedAt: doc.updatedAt ? new Date(doc.updatedAt).getTime() : Date.now(),
+});
+
+const mapLocalDoc = (raw: any): Document => ({
+  id: raw.id,
+  userId: raw.userId || 'local_guest',
+  title: raw.title,
+  content: raw.content ?? null,
+  parentId: raw.parentId || null,
+  status: raw.status || 'active',
+  isExpanded: Boolean(raw.isExpanded),
+  isFavorite: Boolean(raw.isFavorite),
+  tags: raw.tags || null,
+  order: raw.order ?? 0,
+  type: raw.docType || 'text',
+  createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString() : new Date().toISOString(),
+  updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : new Date().toISOString(),
+  date: raw.createdAt ? new Date(raw.createdAt).toISOString() : new Date().toISOString(),
+});
 
 export class TauriStorageAdapter implements IDocumentStorageService {
   private syncPromise: Promise<Document[]> | null = null;
 
   async getDocuments(status: 'active' | 'deleted' = 'active'): Promise<Document[]> {
-    let localDocs: Document[] = [];
-    try {
-      const raw = await invoke<RawLocalDoc[]>('get_local_documents');
-      localDocs = raw
-        .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
-        .map(this.mapLocalDoc);
-    } catch (err) {
-      console.warn('[TauriStorage] Error reading local documents:', err);
-    }
+    const raw = await invoke<any[]>('get_local_documents').catch(() => []);
+    const local = raw
+      .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
+      .map(mapLocalDoc);
 
-    const token = await ensureAuthToken();
-    const hasSavedUser = typeof window !== 'undefined' && Boolean(localStorage.getItem('nout_cloud_user'));
-    const isAuthenticated = Boolean(token || hasSavedUser);
-
-    if (isAuthenticated) {
-      if (localDocs.length === 0) {
-        // Initial load: await cloud sync so notes appear immediately
-        try {
-          const syncedDocs = await this.syncWithCloud(status);
-          if (syncedDocs.length > 0) {
-            return syncedDocs;
-          }
-        } catch (err) {
-          console.warn('[TauriStorage] Cloud sync failed on initial fetch:', err);
-        }
+    if (getAuthToken()) {
+      if (local.length === 0) {
+        const synced = await this.syncWithCloud(status).catch(() => []);
+        if (synced.length > 0) return synced;
       } else {
-        // Background sync to ensure offline availability stays fresh
-        this.syncWithCloud(status).catch((err) => {
-          console.warn('[TauriStorage] Background cloud sync error:', err);
-        });
+        this.syncWithCloud(status).catch(() => {});
       }
     }
-
-    return localDocs;
+    return local;
   }
 
   async getDocument(id: string): Promise<Document> {
-    try {
-      const raw = await invoke<RawLocalDoc>('get_local_document', { id });
-      const doc = this.mapLocalDoc(raw);
-      if (doc.content !== undefined && doc.content !== null) {
-        return doc;
-      }
-    } catch {
-      // Document might not be stored locally yet
+    const raw = await invoke<any>('get_local_document', { id }).catch(() => null);
+    if (raw?.content !== undefined && raw?.content !== null) return mapLocalDoc(raw);
+
+    const res = await api.documents[':id'].$get({ param: { id } }).catch(() => null);
+    if (res?.ok) {
+      const remote = await res.json();
+      await invoke('upsert_local_documents', { documents: [toUpsertInput(remote)] });
+      return mapLocalDoc({ ...remote, docType: remote.type });
     }
-
-    await ensureAuthToken();
-    const headers = { ...getAuthHeaders() };
-
-    try {
-      const res = await fetch(getApiUrl(`/api/documents/${id}`), {
-        headers,
-        credentials: 'include',
-      });
-
-      if (res.ok) {
-        const remoteDoc = await res.json();
-        await invoke('upsert_local_documents', {
-          documents: [{
-            id: remoteDoc.id,
-            userId: remoteDoc.userId,
-            parentId: remoteDoc.parentId ?? null,
-            title: remoteDoc.title,
-            content: remoteDoc.content ?? '',
-            docType: remoteDoc.type ?? 'text',
-            status: remoteDoc.status ?? 'active',
-            isExpanded: Boolean(remoteDoc.isExpanded),
-            isFavorite: Boolean(remoteDoc.isFavorite),
-            tags: typeof remoteDoc.tags === 'string' ? remoteDoc.tags : remoteDoc.tags ? JSON.stringify(remoteDoc.tags) : null,
-            order: remoteDoc.order ?? 0,
-            createdAt: remoteDoc.createdAt ? new Date(remoteDoc.createdAt).getTime() : Date.now(),
-            updatedAt: remoteDoc.updatedAt ? new Date(remoteDoc.updatedAt).getTime() : Date.now(),
-          }],
-        });
-
-        return this.mapLocalDoc({
-          ...remoteDoc,
-          docType: remoteDoc.type,
-        });
-      }
-    } catch (err) {
-      console.warn(`[TauriStorage] Failed to fetch remote document ${id}:`, err);
-    }
-
+    if (raw) return mapLocalDoc(raw);
     throw new Error(`Failed to fetch document ${id}`);
   }
 
   async createDocument(data: Partial<Document>): Promise<Document> {
-    const raw = await invoke<RawLocalDoc>('create_local_document', {
+    const raw = await invoke<any>('create_local_document', {
       input: {
         id: data.id || null,
         parentId: data.parentId || null,
@@ -121,34 +83,15 @@ export class TauriStorageAdapter implements IDocumentStorageService {
         content: data.content || null,
       },
     });
-
-    const localDoc = this.mapLocalDoc(raw);
-
-    const token = getAuthToken();
-    if (token) {
-      fetch(getApiUrl('/api/documents'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: localDoc.id,
-          title: localDoc.title,
-          content: localDoc.content,
-          parentId: localDoc.parentId,
-          type: localDoc.type,
-          status: localDoc.status,
-        }),
-      }).catch((err) => console.warn('[TauriStorage] Failed to sync created document to cloud:', err));
+    const local = mapLocalDoc(raw);
+    if (getAuthToken()) {
+      api.documents.$post({ json: local }).catch(() => {});
     }
-
-    return localDoc;
+    return local;
   }
 
   async updateDocument(id: string, data: Partial<Document>): Promise<Document> {
-    const raw = await invoke<RawLocalDoc>('update_local_document', {
+    const raw = await invoke<any>('update_local_document', {
       input: {
         id,
         title: data.title,
@@ -159,152 +102,54 @@ export class TauriStorageAdapter implements IDocumentStorageService {
         status: data.status,
       },
     });
-
-    const localDoc = this.mapLocalDoc(raw);
-
-    const token = getAuthToken();
-    if (token) {
-      fetch(getApiUrl(`/api/documents/${id}`), {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      }).catch((err) => console.warn(`[TauriStorage] Failed to sync updated document ${id} to cloud:`, err));
+    const local = mapLocalDoc(raw);
+    if (getAuthToken()) {
+      api.documents[':id'].$patch({ param: { id }, json: data }).catch(() => {});
     }
-
-    return localDoc;
+    return local;
   }
 
   async deleteDocument(id: string): Promise<void> {
     await invoke('delete_local_document', { id });
-
-    const token = getAuthToken();
-    if (token) {
-      fetch(getApiUrl(`/api/documents/${id}`), {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-        credentials: 'include',
-      }).catch((err) => console.warn(`[TauriStorage] Failed to sync deleted document ${id} to cloud:`, err));
+    if (getAuthToken()) {
+      api.documents[':id'].$delete({ param: { id } }).catch(() => {});
     }
   }
 
   async restoreDocument(id: string): Promise<Document> {
-    const raw = await invoke<RawLocalDoc>('update_local_document', {
-      input: {
-        id,
-        status: 'active',
-      },
-    });
-
-    const localDoc = this.mapLocalDoc(raw);
-
-    const token = getAuthToken();
-    if (token) {
-      fetch(getApiUrl(`/api/documents/${id}/restore`), {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        credentials: 'include',
-      }).catch((err) => console.warn(`[TauriStorage] Failed to sync restored document ${id} to cloud:`, err));
+    const raw = await invoke<any>('update_local_document', { input: { id, status: 'active' } });
+    const local = mapLocalDoc(raw);
+    if (getAuthToken()) {
+      api.documents[':id'].restore.$patch({ param: { id } }).catch(() => {});
     }
-
-    return localDoc;
+    return local;
   }
 
   async syncWithCloud(status: 'active' | 'deleted' = 'active'): Promise<Document[]> {
-    if (this.syncPromise) {
-      return this.syncPromise;
-    }
+    if (this.syncPromise) return this.syncPromise;
 
     this.syncPromise = (async () => {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'syncing' } }));
-      }
-
       try {
-        let token = await ensureAuthToken();
-        let headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-
-        let res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
-          headers,
-          credentials: 'include',
-        });
-
-        // If session expired (401), force-refresh token and retry once
-        if (res.status === 401) {
-          console.info('[TauriStorage] Session expired (401), attempting token refresh...');
-          setAuthToken(null);
-          token = await ensureAuthToken(true);
-          if (token) {
-            headers = {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            };
-            res = await fetch(getApiUrl(`/api/documents?status=${status}`), {
-              headers,
-              credentials: 'include',
-            });
-          }
-        }
-
-        if (!res.ok) {
-          console.warn(`[TauriStorage] Cloud sync fetch failed with status ${res.status}`);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'error', status: res.status } }));
-          }
-          return [];
-        }
+        const res = await api.documents.$get({ query: { status } });
+        if (!res.ok) return [];
 
         const remoteDocs = await res.json();
-        if (!Array.isArray(remoteDocs) || remoteDocs.length === 0) {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'synced', count: 0 } }));
-          }
-          return [];
-        }
+        if (!Array.isArray(remoteDocs) || remoteDocs.length === 0) return [];
 
-        const upsertInputs = remoteDocs.map((doc: any) => ({
-          id: doc.id,
-          userId: doc.userId,
-          parentId: doc.parentId ?? null,
-          title: doc.title || 'Sin título',
-          content: doc.content ?? null,
-          docType: doc.type ?? 'text',
-          status: doc.status ?? 'active',
-          isExpanded: Boolean(doc.isExpanded),
-          isFavorite: Boolean(doc.isFavorite),
-          tags: typeof doc.tags === 'string' ? doc.tags : doc.tags ? JSON.stringify(doc.tags) : null,
-          order: doc.order ?? 0,
-          createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
-          updatedAt: doc.updatedAt ? new Date(doc.updatedAt).getTime() : Date.now(),
-        }));
-
-        const rawUpdated = await invoke<RawLocalDoc[]>('upsert_local_documents', {
-          documents: upsertInputs,
+        const updated = await invoke<any[]>('upsert_local_documents', {
+          documents: remoteDocs.map(toUpsertInput),
         });
 
-        const mapped = rawUpdated
+        const mapped = updated
           .filter((d) => (status === 'deleted' ? d.status === 'deleted' : d.status !== 'deleted'))
-          .map(this.mapLocalDoc);
+          .map(mapLocalDoc);
 
-        if (typeof window !== 'undefined') {
-          if (mapped.length > 0) {
-            window.dispatchEvent(new CustomEvent('nout:cloud_synced', { detail: mapped }));
-          }
-          window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'synced', count: mapped.length } }));
+        if (typeof window !== 'undefined' && mapped.length > 0) {
+          window.dispatchEvent(new CustomEvent('nout:cloud_synced', { detail: mapped }));
         }
-
         return mapped;
       } catch (err) {
-        console.warn('[TauriStorage] Cloud sync error:', err);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('nout:sync_status', { detail: { state: 'error', error: String(err) } }));
-        }
+        console.warn('[TauriStorage] Sync error:', err);
         return [];
       } finally {
         this.syncPromise = null;
@@ -315,34 +160,11 @@ export class TauriStorageAdapter implements IDocumentStorageService {
   }
 
   async saveCrdtDelta(documentId: string, delta: Uint8Array): Promise<void> {
-    await invoke('save_crdt_delta', {
-      documentId,
-      delta: Array.from(delta),
-    });
+    await invoke('save_crdt_delta', { documentId, delta: Array.from(delta) });
   }
 
   async getCrdtDeltas(documentId: string): Promise<Uint8Array[]> {
     const raw = await invoke<number[][]>('get_crdt_deltas', { documentId });
-    return raw.map((bytes) => new Uint8Array(bytes));
+    return raw.map((b) => new Uint8Array(b));
   }
-
-  private mapLocalDoc = (raw: RawLocalDoc): Document => {
-    return {
-      id: raw.id,
-      userId: raw.userId || 'local_guest',
-      title: raw.title,
-      content: raw.content ?? null,
-      parentId: raw.parentId || null,
-      status: raw.status || 'active',
-      isExpanded: Boolean(raw.isExpanded),
-      isFavorite: Boolean(raw.isFavorite),
-      tags: raw.tags || null,
-      order: raw.order ?? 0,
-      type: raw.docType || 'text',
-      createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : new Date().toISOString(),
-      date: raw.createdAt ? new Date(raw.createdAt).toISOString() : new Date().toISOString(),
-    };
-  };
 }
-

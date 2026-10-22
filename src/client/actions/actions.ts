@@ -1,6 +1,6 @@
 import { client } from '../services/api';
 import { getDocumentStorage } from '../../core/services/storage';
-import type { Document } from '../../core/types/notes';
+import type { Document, Message } from '../../core/types/notes';
 
 // @ts-ignore
 const api = client.api;
@@ -110,4 +110,29 @@ export async function deleteVaultShare(shareId: string) {
     const res = await api.shares.vault[':shareId'].$delete({ param: { shareId } });
     if (!res.ok) throw new Error('Failed to remove vault share');
     return await res.json();
+}
+
+// MESSAGES
+
+export async function getMessages(documentId?: string | null): Promise<Message[]> {
+    const query = documentId ? { documentId } : {};
+    const res = await api.messages.$get({ query });
+    return res.ok ? await res.json() : [];
+}
+
+export async function createMessage(data: { content: string; documentId?: string | null; type?: 'text' | 'audio' }): Promise<Message> {
+    const res = await api.messages.$post({ json: data });
+    if (!res.ok) throw new Error('Failed to create message');
+    return await res.json();
+}
+
+export async function updateMessage(id: string, content: string): Promise<Message> {
+    const res = await api.messages[':id'].$patch({ param: { id }, json: { content } });
+    if (!res.ok) throw new Error('Failed to update message');
+    return await res.json();
+}
+
+export async function deleteMessage(id: string): Promise<void> {
+    const res = await api.messages[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error('Failed to delete message');
 }

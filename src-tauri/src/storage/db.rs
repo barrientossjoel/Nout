@@ -77,20 +77,24 @@ impl DatabaseHandle {
         Ok(Self { sender })
     }
 
+    async fn send_request<T>(&self, make_msg: impl FnOnce(oneshot::Sender<Result<T, AppError>>) -> DbMessage) -> Result<T, AppError> {
+        let (responder, receiver) = oneshot::channel();
+        self.sender
+            .send(make_msg(responder))
+            .await
+            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
+        receiver
+            .await
+            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+    }
+
     /// Fetches all non-deleted local documents ordered by display order and creation date.
     ///
     /// # Errors
     ///
     /// Returns [`AppError`] if querying the database or channel communication fails.
     pub async fn get_documents(&self) -> Result<Vec<LocalDocument>, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::GetDocuments { responder })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::GetDocuments { responder }).await
     }
 
     /// Fetches a single local document by its unique ID.
@@ -99,17 +103,7 @@ impl DatabaseHandle {
     ///
     /// Returns [`AppError::DocumentNotFound`] if not found, or [`AppError`] on query failure.
     pub async fn get_document(&self, id: &str) -> Result<LocalDocument, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::GetDocument {
-                id: id.to_string(),
-                responder,
-            })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::GetDocument { id: id.to_string(), responder }).await
     }
 
     /// Inserts a new document into the database.
@@ -121,14 +115,7 @@ impl DatabaseHandle {
         &self,
         input: CreateDocumentInput,
     ) -> Result<LocalDocument, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::CreateDocument { input, responder })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::CreateDocument { input, responder }).await
     }
 
     /// Updates existing document fields in local storage.
@@ -140,14 +127,7 @@ impl DatabaseHandle {
         &self,
         input: UpdateDocumentInput,
     ) -> Result<LocalDocument, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::UpdateDocument { input, responder })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::UpdateDocument { input, responder }).await
     }
 
     /// Marks a document as deleted.
@@ -156,17 +136,7 @@ impl DatabaseHandle {
     ///
     /// Returns [`AppError`] if the update fails.
     pub async fn delete_document(&self, id: &str) -> Result<(), AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::DeleteDocument {
-                id: id.to_string(),
-                responder,
-            })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::DeleteDocument { id: id.to_string(), responder }).await
     }
 
     /// Saves a binary CRDT update delta for a document.
@@ -179,18 +149,11 @@ impl DatabaseHandle {
         document_id: &str,
         delta: Vec<u8>,
     ) -> Result<(), AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::SaveCrdtDelta {
-                document_id: document_id.to_string(),
-                delta,
-                responder,
-            })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::SaveCrdtDelta {
+            document_id: document_id.to_string(),
+            delta,
+            responder,
+        }).await
     }
 
     /// Retrieves all CRDT update deltas for a document in ascending sequence.
@@ -202,17 +165,10 @@ impl DatabaseHandle {
         &self,
         document_id: &str,
     ) -> Result<Vec<Vec<u8>>, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::GetCrdtDeltas {
-                document_id: document_id.to_string(),
-                responder,
-            })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::GetCrdtDeltas {
+            document_id: document_id.to_string(),
+            responder,
+        }).await
     }
 
     /// Atomically upserts an array of documents into local storage.
@@ -224,17 +180,7 @@ impl DatabaseHandle {
         &self,
         documents: Vec<UpsertDocumentInput>,
     ) -> Result<Vec<LocalDocument>, AppError> {
-        let (responder, receiver) = oneshot::channel();
-        self.sender
-            .send(DbMessage::UpsertDocuments {
-                documents,
-                responder,
-            })
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?;
-        receiver
-            .await
-            .map_err(|e| AppError::ChannelCommunication(e.to_string()))?
+        self.send_request(|responder| DbMessage::UpsertDocuments { documents, responder }).await
     }
 }
 
@@ -285,6 +231,52 @@ fn handle_db_message(conn: &mut Connection, msg: DbMessage) {
     }
 }
 
+fn map_doc_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LocalDocument> {
+    let doc_type_str: String = row.get(5)?;
+    let status_str: String = row.get(6)?;
+
+    let doc_type = DocumentType::from_str_opt(&doc_type_str).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            5,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown doc_type: {doc_type_str}"),
+            )),
+        )
+    })?;
+
+    let status = DocumentStatus::from_str_opt(&status_str).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            6,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown status: {status_str}"),
+            )),
+        )
+    })?;
+
+    let is_expanded_int: i32 = row.get(7)?;
+    let is_favorite_int: i32 = row.get(8)?;
+
+    Ok(LocalDocument {
+        id: row.get(0)?,
+        user_id: row.get(1)?,
+        parent_id: row.get(2)?,
+        title: row.get(3)?,
+        content: row.get(4)?,
+        doc_type,
+        status,
+        is_expanded: is_expanded_int != 0,
+        is_favorite: is_favorite_int != 0,
+        tags: row.get(9)?,
+        order: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+    })
+}
+
 fn query_documents(conn: &Connection) -> Result<Vec<LocalDocument>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT id, user_id, parent_id, title, content, doc_type, status,
@@ -293,53 +285,7 @@ fn query_documents(conn: &Connection) -> Result<Vec<LocalDocument>, AppError> {
          ORDER BY display_order ASC, created_at DESC",
     )?;
 
-    let rows = stmt.query_map([], |row| {
-        let doc_type_str: String = row.get(5)?;
-        let status_str: String = row.get(6)?;
-
-        let doc_type = DocumentType::from_str_opt(&doc_type_str).ok_or_else(|| {
-            rusqlite::Error::FromSqlConversionFailure(
-                5,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Unknown doc_type: {doc_type_str}"),
-                )),
-            )
-        })?;
-
-        let status = DocumentStatus::from_str_opt(&status_str).ok_or_else(|| {
-            rusqlite::Error::FromSqlConversionFailure(
-                6,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Unknown status: {status_str}"),
-                )),
-            )
-        })?;
-
-        let is_expanded_int: i32 = row.get(7)?;
-        let is_favorite_int: i32 = row.get(8)?;
-
-        Ok(LocalDocument {
-            id: row.get(0)?,
-            user_id: row.get(1)?,
-            parent_id: row.get(2)?,
-            title: row.get(3)?,
-            content: row.get(4)?,
-            doc_type,
-            status,
-            is_expanded: is_expanded_int != 0,
-            is_favorite: is_favorite_int != 0,
-            tags: row.get(9)?,
-            order: row.get(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
-        })
-    })?;
-
-    let documents = rows.collect::<Result<Vec<_>, _>>()?;
+    let documents = stmt.query_map([], map_doc_row)?.collect::<Result<Vec<_>, _>>()?;
     Ok(documents)
 }
 
@@ -351,51 +297,7 @@ fn query_document_by_id(conn: &Connection, id: &str) -> Result<LocalDocument, Ap
          WHERE id = ?1",
     )?;
 
-    let doc = stmt.query_row(params![id], |row| {
-        let doc_type_str: String = row.get(5)?;
-        let status_str: String = row.get(6)?;
-
-        let doc_type = DocumentType::from_str_opt(&doc_type_str).ok_or_else(|| {
-            rusqlite::Error::FromSqlConversionFailure(
-                5,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Unknown doc_type: {doc_type_str}"),
-                )),
-            )
-        })?;
-
-        let status = DocumentStatus::from_str_opt(&status_str).ok_or_else(|| {
-            rusqlite::Error::FromSqlConversionFailure(
-                6,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Unknown status: {status_str}"),
-                )),
-            )
-        })?;
-
-        let is_expanded_int: i32 = row.get(7)?;
-        let is_favorite_int: i32 = row.get(8)?;
-
-        Ok(LocalDocument {
-            id: row.get(0)?,
-            user_id: row.get(1)?,
-            parent_id: row.get(2)?,
-            title: row.get(3)?,
-            content: row.get(4)?,
-            doc_type,
-            status,
-            is_expanded: is_expanded_int != 0,
-            is_favorite: is_favorite_int != 0,
-            tags: row.get(9)?,
-            order: row.get(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
-        })
-    }).map_err(|e| match e {
+    let doc = stmt.query_row(params![id], map_doc_row).map_err(|e| match e {
         rusqlite::Error::QueryReturnedNoRows => AppError::DocumentNotFound(id.to_string()),
         other => AppError::Database(other),
     })?;
