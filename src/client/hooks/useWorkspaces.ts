@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { WorkspaceRecord, WorkspaceState, LayoutNode } from '../../core/types/notes';
+import { isNativeMobile } from '../../core/utils/platform';
 
 const STORAGE_KEYS = {
     WORKSPACES: 'notes-workspaces',
@@ -9,13 +10,13 @@ const STORAGE_KEYS = {
 
 const DEFAULT_LAYOUT: LayoutNode = { id: 'root', type: 'dashboard' };
 
-const DEFAULT_STATE: WorkspaceState = {
+const getDefaultState = (): WorkspaceState => ({
     layout: DEFAULT_LAYOUT,
     currentView: 'dashboard',
     activePaneId: 'root',
-    showSidebar: true,
-    showResizeHandles: true,
-};
+    showSidebar: !isNativeMobile(),
+    showResizeHandles: !isNativeMobile(),
+});
 
 export function useWorkspaces() {
     const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>(() => {
@@ -32,14 +33,18 @@ export function useWorkspaces() {
     });
 
     const [activeWorkspaceState, setActiveWorkspaceState] = useState<WorkspaceState>(() => {
-        if (typeof window === 'undefined') return DEFAULT_STATE;
+        if (typeof window === 'undefined') return getDefaultState();
         const saved = localStorage.getItem(STORAGE_KEYS.WS_STATE(activeWorkspaceId));
-        if (!saved) return DEFAULT_STATE;
+        if (!saved) return getDefaultState();
         try {
-            return JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+            if (isNativeMobile()) {
+                parsed.showSidebar = false;
+            }
+            return parsed;
         } catch (e) {
             console.error("Failed to parse workspace state", e);
-            return DEFAULT_STATE;
+            return getDefaultState();
         }
     });
 
@@ -58,13 +63,15 @@ export function useWorkspaces() {
         const saved = localStorage.getItem(STORAGE_KEYS.WS_STATE(activeWorkspaceId));
         if (saved) {
             try {
-                setActiveWorkspaceState(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                if (isNativeMobile()) parsed.showSidebar = false;
+                setActiveWorkspaceState(parsed);
             } catch (e) {
                 console.error("Failed to parse workspace state", e);
-                setActiveWorkspaceState(DEFAULT_STATE);
+                setActiveWorkspaceState(getDefaultState());
             }
         } else {
-            setActiveWorkspaceState(DEFAULT_STATE);
+            setActiveWorkspaceState(getDefaultState());
         }
     }, [activeWorkspaceId]);
 

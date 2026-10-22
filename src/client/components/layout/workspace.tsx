@@ -41,6 +41,10 @@ interface WorkspaceProps {
     showSidebar?: boolean
     onToggleSidebar?: () => void
     refreshDocuments?: () => void
+    onCreateDocument?: (type: 'text' | 'canvas') => void
+    onOpenSettings?: () => void
+    onOpenSearch?: () => void
+    onDeleteDocument?: (id: string) => void
 }
 
 export function Workspace({
@@ -55,7 +59,11 @@ export function Workspace({
     showResizeHandles = true,
     showSidebar,
     onToggleSidebar,
-    refreshDocuments
+    refreshDocuments,
+    onCreateDocument,
+    onOpenSettings,
+    onOpenSearch,
+    onDeleteDocument,
 }: WorkspaceProps) {
     const isMobile = useMediaQuery('(max-width: 768px)')
     const firstPaneId = React.useMemo(() => findFirstPaneId(layout), [layout])
@@ -526,6 +534,11 @@ export function Workspace({
                                 onToggleSidebar={toggleSidebar}
                                 showTabs={node.showTabs !== false}
                                 onToggleTabs={() => handleToggleTabs(node.id)}
+                                onCreateDocument={onCreateDocument}
+                                onOpenSettings={onOpenSettings}
+                                onOpenSearch={onOpenSearch}
+                                onUpdateDocument={onUpdateDocument}
+                                onDeleteDocument={onDeleteDocument}
                             />
                         ) : (
                             <ErrorBoundary resetKey={activeTabId ?? undefined}>
@@ -593,6 +606,7 @@ export function Workspace({
                                         }}
                                         forwardPath={forwardPaths[`${node.id}:${node.activeTabId}`]}
                                         onClose={() => handleClosePane(node.id)}
+                                        onNavigate={onNavigate}
                                         onSplit={(direction) => handleSplitPane(node.id, direction)}
                                         showSidebar={showSidebar}
                                         onToggleSidebar={toggleSidebar}
@@ -615,6 +629,11 @@ export function Workspace({
                 onNavigate={onNavigate}
                 showSidebar={showSidebar}
                 onToggleSidebar={isFirstPane ? onToggleSidebar : undefined}
+                onCreateDocument={onCreateDocument}
+                onOpenSettings={onOpenSettings}
+                onOpenSearch={onOpenSearch}
+                onUpdateDocument={onUpdateDocument}
+                onDeleteDocument={onDeleteDocument}
             />
         }
 

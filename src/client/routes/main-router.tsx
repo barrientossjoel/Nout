@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement 
 import NotesApp from '../features/notes/components/notes-app';
 import { useAuth } from '../context/AuthContext';
 import { ProtectedRoute } from '../components/auth/protected-route';
-import { isTauri } from '../../core/utils/platform';
+import { isTauri, isNativeMobile } from '../../core/utils/platform';
 import { isVaultInitialized } from '../../core/services/vault';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
@@ -55,8 +55,9 @@ function AppShell() {
 export function MainRouter(): ReactElement {
   const [path, setPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'));
   const { user, isLoading } = useAuth();
-  const [vaultReady, setVaultReady] = useState(isVaultInitialized);
-  const isDesktop = useMemo(isTauri, []);
+  const isMobile = useMemo(isNativeMobile, []);
+  const [vaultReady, setVaultReady] = useState(() => isMobile || isVaultInitialized());
+  const isDesktop = useMemo(() => isTauri() && !isNativeMobile(), [isMobile]);
 
   useEffect(() => {
     const handlePopState = () => setPath(window.location.pathname);
@@ -96,12 +97,12 @@ export function MainRouter(): ReactElement {
       case '/home':
         return isDesktop
           ? <HomeWelcome onContinue={handleVaultConfigured} />
-          : !user ? <Landing /> : <AppShell />;
+          : (!user && !isMobile ? <Landing /> : <AppShell />);
 
       case '/':
         return isDesktop
           ? (!vaultReady ? <HomeWelcome onContinue={handleVaultConfigured} /> : <AppShell />)
-          : (!user ? <Landing /> : <AppShell />);
+          : (!user && !isMobile ? <Landing /> : <AppShell />);
 
       default:
         return <AppShell />;
@@ -110,7 +111,7 @@ export function MainRouter(): ReactElement {
 
   return (
     <>
-      {isDesktop && <UpdateBanner />}
+      {isTauri() && <UpdateBanner />}
       {content}
     </>
   );

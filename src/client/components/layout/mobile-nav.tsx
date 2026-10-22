@@ -50,32 +50,40 @@ export function MobileNav({
                 aria-label="Mobile Navigation"
                 className="fixed bottom-0 left-0 right-0 z-[1000] bg-background/95 backdrop-blur-lg border-t border-border/80 flex items-center justify-around h-[calc(4.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-1 pointer-events-auto shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
             >
-                {/* MENU DRAWER TRIGGER */}
+                {/* NOTAS / DASHBOARD */}
                 <button
                     type="button"
-                    aria-label="Toggle navigation drawer"
+                    aria-label="Notas"
                     className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
-                    onClick={() => handleAction(onToggleSidebar, 'light')}
+                    onClick={() => handleAction(() => onNavigate('dashboard'))}
                 >
-                    <div className="px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground group-active:scale-95 group-hover:text-foreground">
-                        <Menu className="h-5 w-5" />
+                    <div className={cn(
+                        "px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center",
+                        currentView === 'dashboard'
+                            ? "bg-secondary text-foreground shadow-xs ring-1 ring-border/50"
+                            : "text-muted-foreground group-active:scale-95 group-hover:text-foreground"
+                    )}>
+                        <FileText className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
-                        Menu
+                    <span className={cn(
+                        "text-[10px] font-medium tracking-tight mt-0.5 transition-colors",
+                        currentView === 'dashboard' ? "text-foreground font-semibold" : "text-muted-foreground"
+                    )}>
+                        Notas
                     </span>
                 </button>
 
                 {/* SEARCH */}
                 <button
                     type="button"
-                    aria-label="Search"
+                    aria-label="Buscar"
                     className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
                     onClick={() => handleAction(() => onNavigate('search'))}
                 >
                     <div className={cn(
                         "px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center",
                         currentView === 'search'
-                            ? "bg-secondary text-foreground shadow-sm ring-1 ring-border/50"
+                            ? "bg-secondary text-foreground shadow-xs ring-1 ring-border/50"
                             : "text-muted-foreground group-active:scale-95 group-hover:text-foreground"
                     )}>
                         <Search className="h-5 w-5" />
@@ -84,21 +92,21 @@ export function MobileNav({
                         "text-[10px] font-medium tracking-tight mt-0.5 transition-colors",
                         currentView === 'search' ? "text-foreground font-semibold" : "text-muted-foreground"
                     )}>
-                        Search
+                        Buscar
                     </span>
                 </button>
 
                 {/* TABS BUTTON WITH BADGE */}
                 <button
                     type="button"
-                    aria-label={`Open tabs (${tabs.length} open)`}
+                    aria-label={`Pestañas abiertas (${tabs.length})`}
                     className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
                     onClick={() => handleAction(() => setIsMobileModalOpen(true), 'light')}
                 >
                     <div className={cn(
                         "px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center relative",
                         isMobileModalOpen
-                            ? "bg-secondary text-foreground shadow-sm"
+                            ? "bg-secondary text-foreground shadow-xs"
                             : "text-muted-foreground group-active:scale-95 group-hover:text-foreground"
                     )}>
                         <Copy className="h-5 w-5" />
@@ -107,37 +115,29 @@ export function MobileNav({
                         </span>
                     </div>
                     <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
-                        Tabs
+                        Pestañas
                     </span>
                 </button>
 
-                {/* EVENTS / CALENDAR */}
+                {/* CARPETAS / MENU DRAWER */}
                 <button
                     type="button"
-                    aria-label="Calendar events"
+                    aria-label="Abrir carpetas"
                     className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
-                    onClick={() => handleAction(() => onNavigate('calendar'))}
+                    onClick={() => handleAction(onToggleSidebar, 'light')}
                 >
-                    <div className={cn(
-                        "px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center",
-                        currentView === 'calendar'
-                            ? "bg-secondary text-foreground shadow-sm ring-1 ring-border/50"
-                            : "text-muted-foreground group-active:scale-95 group-hover:text-foreground"
-                    )}>
-                        <Calendar className="h-5 w-5" />
+                    <div className="px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground group-active:scale-95 group-hover:text-foreground">
+                        <Menu className="h-5 w-5" />
                     </div>
-                    <span className={cn(
-                        "text-[10px] font-medium tracking-tight mt-0.5 transition-colors",
-                        currentView === 'calendar' ? "text-foreground font-semibold" : "text-muted-foreground"
-                    )}>
-                        Events
+                    <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
+                        Carpetas
                     </span>
                 </button>
 
                 {/* SETTINGS */}
                 <button
                     type="button"
-                    aria-label="Settings"
+                    aria-label="Ajustes"
                     className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
                     onClick={() => handleAction(onOpenSettings, 'light')}
                 >
@@ -145,7 +145,7 @@ export function MobileNav({
                         <Settings className="h-5 w-5" />
                     </div>
                     <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
-                        Settings
+                        Ajustes
                     </span>
                 </button>
             </nav>

@@ -21,3 +21,11 @@ export function getPlatformType(): 'desktop' | 'mobile' | 'web' {
 
   return 'desktop';
 }
+
+/**
+ * Retorna true si es entorno móvil (Tauri en Android/iOS o navegador móvil)
+ */
+export function isNativeMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  return getPlatformType() === 'mobile' || /android|iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+}

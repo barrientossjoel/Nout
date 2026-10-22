@@ -16,6 +16,7 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb"
+import { triggerHaptic } from '../../lib/utils/haptics'
 import { CommandMenu } from '../../components/editor/command-menu'
 import { Badge } from '../../components/ui/badge'
 import {
@@ -301,10 +302,27 @@ export function DocumentView({
     return (
         <div className={cn("flex flex-col h-full animate-in fade-in duration-300", hideBorder ? "bg-muted/50" : "bg-background")}>
             {/* Header / Toolbar */}
-            <div className="h-16 flex items-center justify-between px-4 bg-transparent sticky top-0 z-10">
+            <div className="h-16 flex items-center justify-between px-3 md:px-4 bg-transparent sticky top-0 z-10">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-
-                    {onToggleSidebar && (
+                    {isMobile ? (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                triggerHaptic('light');
+                                if (onNavigate) {
+                                    onNavigate('dashboard');
+                                } else if (onClose) {
+                                    onClose();
+                                }
+                            }}
+                            className="flex items-center gap-1 px-2 -ml-1 text-primary font-medium hover:bg-secondary/50 rounded-xl active:scale-95 transition-all min-h-[44px]"
+                            aria-label="Volver a Notas"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                            <span className="text-sm font-semibold">Notas</span>
+                        </Button>
+                    ) : onToggleSidebar && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -374,63 +392,37 @@ export function DocumentView({
                 </div>
 
                 {isMobile && (
-                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center max-w-[50%] overflow-hidden pointer-events-none">
-                        <Breadcrumb className="pointer-events-auto">
-                            <BreadcrumbList className="flex-nowrap no-scrollbar overflow-x-auto justify-center">
-                                {breadcrumbItems.map((item, index) => {
-                                    const isCurrent = item.id === document.id;
-                                    const isLast = index === breadcrumbItems.length - 1;
-
-                                    return (
-                                        <div key={item.id} className="flex items-center shrink-0">
-                                            <BreadcrumbItem>
-                                                {isCurrent ? (
-                                                    <BreadcrumbPage className="font-bold text-xs truncate max-w-[80px]">
-                                                        {item.title || t('untitledDocument')}
-                                                    </BreadcrumbPage>
-                                                ) : (
-                                                    <BreadcrumbLink asChild>
-                                                        <button
-                                                            className={cn(
-                                                                "cursor-pointer hover:text-foreground transition-colors text-xs truncate max-w-[80px]",
-                                                                item.isForward ? "text-muted-foreground/40 italic" : "text-muted-foreground"
-                                                            )}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                if (item.id !== document.id) {
-                                                                    onReplaceDocument?.(item.id);
-                                                                }
-                                                            }}
-                                                        >
-                                                            {item.title || t('untitledDocument')}
-                                                        </button>
-                                                    </BreadcrumbLink>
-                                                )}
-                                            </BreadcrumbItem>
-                                            {!isLast && <BreadcrumbSeparator className="mx-1" />}
-                                        </div>
-                                    );
-                                })}
-                            </BreadcrumbList>
-                        </Breadcrumb>
+                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center max-w-[40%] pointer-events-none">
+                        <span className="text-xs font-semibold truncate text-foreground/90">
+                            {title || t('untitledDocument')}
+                        </span>
                     </div>
                 )}
 
                 <div className="flex items-center gap-1">
+                    {isMobile ? (
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1 mr-1">
+                            {isSaving ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            ) : lastSaved ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                            ) : null}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1.5 transition-opacity duration-300 min-w-[100px] justify-end mr-2">
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    {t('saving')}
+                                </>
+                            ) : lastSaved ? (
+                                t('saved')
+                            ) : null}
+                        </span>
+                    )}
+
                     {!isMobile && (
                         <>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1.5 transition-opacity duration-300 min-w-[100px] justify-end mr-2">
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                        {t('saving')}
-                                    </>
-                                ) : lastSaved ? (
-                                    t('saved')
-                                ) : null}
-                            </span>
-
                             <Button variant="ghost" size="icon" onClick={() => setIsEditing(!isEditing)} title={isEditing ? t('viewMode') : t('editMode')}>
                                 {isEditing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
                             </Button>

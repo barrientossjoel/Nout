@@ -4,6 +4,9 @@ import type { Document } from '../../../core/types/notes'
 import { Button } from '../../components/ui/button'
 import { cn } from '../../lib/utils/utils'
 import { useLanguage } from '../../context/LanguageContext'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { isNativeMobile } from '../../../core/utils/platform'
+import { MobileNotesHome } from './mobile-notes-home'
 
 interface DashboardProps {
     documents: Document[]
@@ -12,6 +15,11 @@ interface DashboardProps {
     onToggleSidebar?: () => void
     showTabs?: boolean
     onToggleTabs?: () => void
+    onCreateDocument?: (type: 'text' | 'canvas') => void
+    onOpenSettings?: () => void
+    onOpenSearch?: () => void
+    onUpdateDocument?: (doc: Document) => void
+    onDeleteDocument?: (id: string) => void
 }
 
 export function Dashboard({
@@ -20,9 +28,15 @@ export function Dashboard({
     showSidebar,
     onToggleSidebar,
     showTabs,
-    onToggleTabs
+    onToggleTabs,
+    onCreateDocument,
+    onOpenSettings,
+    onOpenSearch,
+    onUpdateDocument,
+    onDeleteDocument,
 }: DashboardProps) {
     const { t } = useLanguage();
+    const isMobile = useMediaQuery('(max-width: 768px)') || isNativeMobile();
 
     // Stabilize computation to prevent re-renders when nothing changes
     const favorites = useMemo(() => documents.filter(d => d.isFavorite), [documents]);
@@ -34,6 +48,21 @@ export function Dashboard({
             return dateB - dateA;
         }).slice(0, 5);
     }, [documents]);
+
+    if (isMobile) {
+        return (
+            <MobileNotesHome
+                documents={documents}
+                onOpenDocument={onNavigate}
+                onCreateDocument={onCreateDocument || (() => {})}
+                onToggleSidebar={onToggleSidebar}
+                onOpenSettings={onOpenSettings}
+                onOpenSearch={onOpenSearch}
+                onUpdateDocument={onUpdateDocument}
+                onDeleteDocument={onDeleteDocument}
+            />
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-muted/50 animate-in fade-in duration-300">
