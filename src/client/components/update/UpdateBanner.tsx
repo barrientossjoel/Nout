@@ -66,16 +66,63 @@ export function UpdateBanner() {
         aria-label="Notificación de actualización en curso"
         className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-md z-50 p-4 rounded-xl border border-blue-500/40 bg-neutral-900/95 backdrop-blur-md shadow-2xl text-neutral-100 animate-in fade-in duration-200"
       >
-        <div className="flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-blue-400 animate-spin flex-shrink-0" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Loader2 className="w-5 h-5 text-blue-400 animate-spin flex-shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-semibold text-neutral-100">
+                Descargando actualización ({updateState.newVersion})...
+              </h2>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                En breve se abrirá el instalador.
+              </p>
+              {updateState.apkUrl && (
+                <a
+                  href={updateState.apkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 underline mt-2 font-medium"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Descarga directa en navegador
+                </a>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setDismissed(true)}
+            className="text-neutral-400 hover:text-neutral-200 transition-colors p-1"
+            aria-label="Cerrar notificación"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  if (updateState.status === 'error') {
+    return (
+      <aside
+        aria-label="Error en la actualización"
+        className="fixed bottom-4 right-4 left-4 sm:left-auto sm:max-w-md z-50 p-4 rounded-xl border border-red-500/40 bg-neutral-900/95 backdrop-blur-md shadow-2xl text-neutral-100 animate-in fade-in duration-200"
+      >
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-neutral-100">
-              Descargando actualización ({updateState.newVersion})...
+            <h2 className="text-sm font-semibold text-red-400">
+              Error al actualizar
             </h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              En breve se abrirá el asistente para aplicar la actualización.
+              {updateState.message}
             </p>
           </div>
+          <button
+            onClick={() => setDismissed(true)}
+            className="text-neutral-400 hover:text-neutral-200 transition-colors p-1"
+            aria-label="Cerrar notificación"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </aside>
     );

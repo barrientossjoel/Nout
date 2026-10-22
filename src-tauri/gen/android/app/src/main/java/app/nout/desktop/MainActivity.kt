@@ -87,6 +87,17 @@ class MainActivity : TauriActivity() {
     super.onDestroy()
   }
 
+  private var pendingInstallFile: File? = null
+
+  override fun onResume() {
+    super.onResume()
+    val file = pendingInstallFile
+    if (file != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
+      pendingInstallFile = null
+      installApk(file)
+    }
+  }
+
   private fun downloadAndInstall(apkUrl: String) {
     Thread {
       try {
@@ -130,7 +141,8 @@ class MainActivity : TauriActivity() {
           installApk(cacheFile)
         }
       } catch (e: Exception) {
-        Log.e(TAG, "Failed to download update: ${e.message}", e)
+        Log.e(TAG, "Failed to download update, falling back to browser: ${e.message}", e)
+        openUrl(apkUrl)
       }
     }.start()
   }
@@ -145,6 +157,7 @@ class MainActivity : TauriActivity() {
       // 1. En Android 8.0+ (API 26+), validar si la app tiene permiso para instalar paquetes desconocidos
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         if (!packageManager.canRequestPackageInstalls()) {
+          pendingInstallFile = file
           Log.i(TAG, "Permiso canRequestPackageInstalls no otorgado. Abriendo ajustes del sistema...")
           val settingsIntent = Intent(
             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,

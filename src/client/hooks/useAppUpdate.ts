@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { isTauri } from '../../core/utils/platform';
+import { APP_VERSION } from '../../core/constants/version';
 
 export type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'available'; currentVersion: string; newVersion: string; apkUrl: string; releaseNotes: string }
-  | { status: 'updating'; newVersion: string }
+  | { status: 'updating'; newVersion: string; apkUrl: string }
   | { status: 'upToDate'; currentVersion: string }
   | { status: 'error'; message: string };
 
@@ -30,7 +31,7 @@ export function useAppUpdate() {
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' });
 
   const triggerUpdateDownload = useCallback(async (apkUrl: string, newVersion: string) => {
-    setUpdateState({ status: 'updating', newVersion });
+    setUpdateState({ status: 'updating', newVersion, apkUrl });
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('trigger_app_update', { apkUrl });
@@ -52,7 +53,7 @@ export function useAppUpdate() {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const platformInfo = await invoke<{ os: string; version: string; isNative: boolean }>('get_platform_info');
-      const currentVersion = platformInfo.version || '1.0.0';
+      const currentVersion = platformInfo.version || APP_VERSION;
 
       const res = await fetch(GITHUB_RELEASES_API, {
         headers: { Accept: 'application/vnd.github.v3+json' },

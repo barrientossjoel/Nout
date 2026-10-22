@@ -10,10 +10,11 @@ import {
   saveVaultPath,
   getSavedVaultPath,
 } from '../../core/services/vault';
+import { APP_VERSION } from '../../core/constants/version';
 
 const I18N = {
   es: {
-    version: 'Versión 1.0.0',
+    version: `Versión ${APP_VERSION}`,
     vaultTitle: 'Carpeta de la bóveda (Vault)',
     vaultDesc: 'Ubicación en tu equipo donde se guardarán tus notas y lienzos.',
     browse: 'Examinar',
@@ -27,7 +28,7 @@ const I18N = {
     continueButton: 'Continuar',
   },
   en: {
-    version: 'Version 1.0.0',
+    version: `Version ${APP_VERSION}`,
     vaultTitle: 'Vault folder location',
     vaultDesc: 'Location on your device where notes and canvas files will be saved.',
     browse: 'Browse',
