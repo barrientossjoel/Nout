@@ -110,27 +110,12 @@ export function MobileNav({
                             : "text-muted-foreground group-active:scale-95 group-hover:text-foreground"
                     )}>
                         <Copy className="h-5 w-5" />
-                        <span className="absolute -top-0.5 right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center shadow-xs">
+                        <span className="absolute -top-0.5 right-2 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center shadow-xs">
                             {tabs.length}
                         </span>
                     </div>
                     <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
                         Pestañas
-                    </span>
-                </button>
-
-                {/* CARPETAS / MENU DRAWER */}
-                <button
-                    type="button"
-                    aria-label="Abrir carpetas"
-                    className="flex flex-col items-center justify-center flex-1 min-h-[48px] py-1 text-xs group cursor-pointer focus-visible:outline-none select-none"
-                    onClick={() => handleAction(onToggleSidebar, 'light')}
-                >
-                    <div className="px-4 py-1 rounded-full transition-all duration-200 flex items-center justify-center text-muted-foreground group-active:scale-95 group-hover:text-foreground">
-                        <Menu className="h-5 w-5" />
-                    </div>
-                    <span className="text-[10px] font-medium tracking-tight mt-0.5 text-muted-foreground group-hover:text-foreground">
-                        Carpetas
                     </span>
                 </button>
 
@@ -150,18 +135,18 @@ export function MobileNav({
                 </button>
             </nav>
 
-            {/* Material Design 3 Floating Action Button (FAB - 56x56dp Squircle / rounded-2xl) */}
+            {/* Material Design 3 Floating Action Button (FAB - 56x56dp Squircle with vibrant elevated container) */}
             {!hideFab && (
                 <div className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-[120]">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
                                 size="icon"
-                                aria-label="Create note or canvas"
+                                aria-label="Crear nota o lienzo"
                                 onClick={() => triggerHaptic('selection')}
-                                className="h-14 w-14 rounded-2xl shadow-xl bg-primary hover:bg-primary/95 transition-all duration-200 active:scale-95 border border-primary/20 flex items-center justify-center"
+                                className="h-14 w-14 rounded-[18px] shadow-[0_8px_24px_rgba(37,99,235,0.4),0_4px_12px_rgba(0,0,0,0.35)] bg-blue-600 hover:bg-blue-500 text-white transition-all duration-200 active:scale-95 border-0 ring-4 ring-background/60 flex items-center justify-center"
                             >
-                                <Plus className="h-6 w-6 text-primary-foreground stroke-[2.5]" />
+                                <Plus className="h-6 w-6 stroke-[2.5]" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" sideOffset={12} className="w-56 p-2 rounded-2xl border border-border/80 shadow-2xl bg-card/95 backdrop-blur-md">
@@ -169,15 +154,15 @@ export function MobileNav({
                                 className="py-3 px-4 rounded-xl cursor-pointer min-h-[48px]" 
                                 onClick={() => handleAction(() => onCreateDocument('text'), 'selection')}
                             >
-                                <FileText className="mr-3 h-5 w-5 opacity-70" />
-                                <span className="font-medium text-sm">Nuevo documento</span>
+                                <FileText className="mr-3 h-5 w-5 text-blue-500" />
+                                <span className="font-medium text-sm">Nueva nota</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                                 className="py-3 px-4 rounded-xl cursor-pointer min-h-[48px]" 
                                 onClick={() => handleAction(() => onCreateDocument('canvas'), 'selection')}
                             >
-                                <Frame className="mr-3 h-5 w-5 opacity-70" />
-                                <span className="font-medium text-sm">Nuevo canvas</span>
+                                <Frame className="mr-3 h-5 w-5 text-indigo-500" />
+                                <span className="font-medium text-sm">Nuevo lienzo</span>
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -211,15 +196,29 @@ export function MobileNav({
                                     {tabs.length}
                                 </span>
                             </div>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                aria-label="Close tabs switcher"
-                                onClick={() => handleAction(() => setIsMobileModalOpen(false), 'light')} 
-                                className="h-8 w-8 rounded-full bg-secondary/60 hover:bg-secondary"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setIsMobileModalOpen(false)
+                                        onCreateDocument('text')
+                                    }}
+                                    className="h-8 px-3 rounded-full text-xs font-medium gap-1.5 bg-blue-600/10 border-blue-600/20 text-blue-500 hover:bg-blue-600/20"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>Nueva pestaña</span>
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    aria-label="Cerrar selector de pestañas"
+                                    onClick={() => handleAction(() => setIsMobileModalOpen(false), 'light')} 
+                                    className="h-8 w-8 rounded-full bg-secondary/60 hover:bg-secondary"
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
 
                         {/* Tabs Grid */}

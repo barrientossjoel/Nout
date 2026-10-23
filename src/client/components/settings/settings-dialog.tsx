@@ -135,13 +135,13 @@ export function SettingsDialog({
                 { id: "account", label: t('account') },
                 { id: "appearance", label: t('appearance') },
                 { id: "ai", label: "AI Agents" },
-                { id: "shortcuts", label: t('shortcuts') },
+                ...(!isMobile ? [{ id: "shortcuts", label: t('shortcuts') }] : []),
                 { id: "collaboration", label: t('collaboration') as string },
             ]
         }
     ];
 
-    const hasSearchResults = filteredShortcuts.length > 0 ||
+    const hasSearchResults = (!isMobile && filteredShortcuts.length > 0) ||
         t('appearance').toLowerCase().includes(searchQuery.toLowerCase()) ||
         t('account').toLowerCase().includes(searchQuery.toLowerCase());
 

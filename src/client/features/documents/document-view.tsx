@@ -5,8 +5,9 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useAutoSave } from '../../hooks/useAutoSave'
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { ChevronLeft, Loader2, Eye, Pencil, Star, Tag, Columns, Rows, MoreVertical, Check, Plus, PanelLeft, PanelTop, MessageSquare, Link2, ChevronDown, ChevronRight, Frame, FileText, Share2 } from 'lucide-react'
+import { ChevronLeft, Loader2, Eye, Pencil, Star, Tag, Columns, Rows, MoreVertical, Check, Plus, PanelLeft, PanelTop, MessageSquare, Link2, ChevronDown, ChevronRight, Frame, FileText, Share2, FolderInput } from 'lucide-react'
 import type { Document } from '../../../core/types/notes'
+import { MoveDocumentDialog } from './components/move-document-dialog'
 import { cn } from '../../lib/utils/utils'
 import {
     Breadcrumb,
@@ -85,6 +86,7 @@ export function DocumentView({
     const [tagInput, setTagInput] = useState('')
     const isMobile = useMediaQuery('(max-width: 768px)')
     const [shareOpen, setShareOpen] = useState(false)
+    const [moveDialogOpen, setMoveDialogOpen] = useState(false)
 
     // Command Menu State
     const [commandMenu, setCommandMenu] = useState<{
@@ -479,6 +481,11 @@ export function DocumentView({
                                     {document.isFavorite && <Check className="h-4 w-4 ml-auto" />}
                                 </div>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem className="cursor-pointer" onClick={() => setMoveDialogOpen(true)}>
+                                    <FolderInput className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    <span>Mover a...</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem className="cursor-pointer" onClick={() => setShareOpen(true)}>
                                     <Share2 className="h-4 w-4 mr-2 text-muted-foreground" />
                                     <span>{t('share')}</span>
@@ -544,6 +551,18 @@ export function DocumentView({
                         </DropdownMenuContent>
                     </DropdownMenu>
                     <ShareDialog open={shareOpen} onOpenChange={setShareOpen} elementId={document.id} elementType={document.type === 'canvas' ? 'canvas' : 'document'} />
+                    <MoveDocumentDialog
+                        document={document}
+                        documents={documents}
+                        isOpen={moveDialogOpen}
+                        onClose={() => setMoveDialogOpen(false)}
+                        onMove={(docId, newParentId) => {
+                            onUpdateDocument({ ...document, parentId: newParentId });
+                            import('../../actions/actions').then(({ updateDocument }) => {
+                                updateDocument(docId, { parentId: newParentId });
+                            });
+                        }}
+                    />
                 </div>
             </div>
 

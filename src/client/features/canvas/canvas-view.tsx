@@ -2,12 +2,13 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { GripVertical, Plus, Trash2, Type, Move, MousePointer2, Image, Maximize, Minimize, X, Check, Link, PanelLeft, PanelTop, FileText, MessageSquare, Frame, ArrowRight, Square, Circle, FolderDown, Upload, ExternalLink, ZoomIn, ZoomOut, Table, MoreVertical, Pencil, Share2, Eraser } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Type, Move, MousePointer2, Image, Maximize, Minimize, X, Check, Link, PanelLeft, PanelTop, FileText, MessageSquare, Frame, ArrowRight, Square, Circle, FolderDown, Upload, ExternalLink, ZoomIn, ZoomOut, Table, MoreVertical, Pencil, Share2, Eraser, ChevronLeft, FolderInput } from 'lucide-react'
 import { cn } from '../../lib/utils/utils'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import type { Document } from '../../../core/types/notes'
 import { ImportDocsDialog } from './import-docs-dialog'
+import { MoveDocumentDialog } from '../documents/components/move-document-dialog'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import YPartyKitProvider from 'y-partykit/provider'
@@ -186,6 +187,7 @@ export function CanvasView({
     const [localShowNotes, setLocalShowNotes] = useState(false)
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [shareOpen, setShareOpen] = useState(false)
+    const [isMoveOpen, setIsMoveOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const breadcrumbs = useMemo(() => {
@@ -433,22 +435,38 @@ export function CanvasView({
 
     return (
         <div ref={wrapperRef} className="flex flex-col w-full h-full relative overflow-hidden bg-muted/50 select-none touch-none group/canvas">
-            {/* Header / Breadcrumb - Hidden in Fullscreen or depending on design preferences */}
-            {/* Sidebar Toggle and Breadcrumb */}
-            <div className="absolute top-3 left-4 z-50 flex items-center h-10 gap-2 pointer-events-none">
-                <div className="flex items-center gap-2 p-1 rounded-md pointer-events-auto">
-                    {onToggleSidebar && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={onToggleSidebar}
-                            className="bg-transparent h-8 w-8 text-muted-foreground hover:text-foreground"
-                        >
-                            <PanelLeft className="h-4 w-4" />
-                        </Button>
-                    )}
-
-                    {!isMobile && (
+            {/* Header / Top bar */}
+            {isMobile ? (
+                <div className="absolute top-3 left-3 z-50 flex items-center gap-2 pointer-events-auto">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            if (onOpenDocument) onOpenDocument('dashboard');
+                            else if (onToggleSidebar) onToggleSidebar();
+                        }}
+                        className="h-9 px-2.5 text-foreground font-medium flex items-center gap-1 bg-card/90 backdrop-blur-md rounded-full shadow-sm border border-border/60 hover:bg-card active:scale-95 transition-all"
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="text-xs font-semibold">Notas</span>
+                    </Button>
+                    <span className="text-xs font-semibold text-foreground/90 truncate max-w-[150px] px-2.5 py-1 bg-card/80 backdrop-blur-xs rounded-full border border-border/40">
+                        {doc.title || "Lienzo"}
+                    </span>
+                </div>
+            ) : (
+                <div className="absolute top-3 left-4 z-50 flex items-center h-10 gap-2 pointer-events-none">
+                    <div className="flex items-center gap-2 p-1 rounded-md pointer-events-auto">
+                        {onToggleSidebar && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onToggleSidebar}
+                                className="bg-transparent h-8 w-8 text-muted-foreground hover:text-foreground"
+                            >
+                                <PanelLeft className="h-4 w-4" />
+                            </Button>
+                        )}
                         <div className="flex items-center gap-2 text-sm text-foreground/80 pr-2 pointer-events-auto">
                             <span
                                 className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
@@ -459,47 +477,6 @@ export function CanvasView({
                             <span className="text-muted-foreground">/</span>
                             <span className="font-medium">{doc.title}</span>
                         </div>
-                    )}
-                </div>
-            </div>
-
-            {isMobile && (
-                <div className="absolute top-3 left-0 right-0 z-40 flex items-center justify-center h-10 pointer-events-none">
-                    <div className="max-w-[50%] overflow-hidden pointer-events-none">
-                        <Breadcrumb className="pointer-events-auto flex items-center justify-center bg-background/50 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-border/50">
-                            <BreadcrumbList className="flex-nowrap no-scrollbar overflow-x-auto justify-center">
-                                {breadcrumbs.map((item, index) => {
-                                    const isCurrent = item.id === doc.id;
-                                    const isLast = index === breadcrumbs.length - 1;
-
-                                    return (
-                                        <div key={item.id} className="flex items-center shrink-0">
-                                            <BreadcrumbItem>
-                                                {isCurrent ? (
-                                                    <BreadcrumbPage className="font-bold text-xs truncate max-w-[80px]">
-                                                        {item.title || "Untitled"}
-                                                    </BreadcrumbPage>
-                                                ) : (
-                                                    <BreadcrumbLink
-                                                        asChild
-                                                        className="cursor-pointer hover:text-foreground transition-colors text-xs truncate max-w-[80px] text-muted-foreground"
-                                                    >
-                                                        <button onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            onOpenDocument?.(item.id);
-                                                        }}>
-                                                            {item.title || "Untitled"}
-                                                        </button>
-                                                    </BreadcrumbLink>
-                                                )}
-                                            </BreadcrumbItem>
-                                            {!isLast && <BreadcrumbSeparator className="mx-1" />}
-                                        </div>
-                                    );
-                                })}
-                            </BreadcrumbList>
-                        </Breadcrumb>
                     </div>
                 </div>
             )}
@@ -724,27 +701,31 @@ export function CanvasView({
                                 </div>
                             )}
                             <div className="p-2">
-                                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                                <DropdownMenuItem onClick={() => setShareOpen(true)} className="cursor-pointer">
                                     <Share2 className="mr-2 h-4 w-4" />
-                                    <span>Share</span>
+                                    <span>Compartir</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setIsMoveOpen(true)} className="cursor-pointer">
+                                    <FolderInput className="mr-2 h-4 w-4" />
+                                    <span>Mover lienzo...</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={toggleFullscreen}>
+                                <DropdownMenuItem onClick={toggleFullscreen} className="cursor-pointer">
                                     {isFullscreen ? (
                                         <>
                                             <Minimize className="h-4 w-4 mr-2" />
-                                            <span>Exit Fullscreen</span>
+                                            <span>Salir de pantalla completa</span>
                                         </>
                                     ) : (
                                         <>
                                             <Maximize className="h-4 w-4 mr-2" />
-                                            <span>Enter Fullscreen</span>
+                                            <span>Pantalla completa</span>
                                         </>
                                     )}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })}>
+                                <DropdownMenuItem onClick={() => setCamera({ x: 0, y: 0, zoom: 1 })} className="cursor-pointer">
                                     <Move className="h-4 w-4 mr-2" />
-                                    <span>Reset View</span>
+                                    <span>Restablecer vista</span>
                                 </DropdownMenuItem>
                             </div>
                         </DropdownMenuContent>
@@ -753,15 +734,30 @@ export function CanvasView({
             </div>
 
             {!readOnly && (
-                <ShareDialog
-                    elementId={doc.id}
-                    elementType="canvas"
-                    open={shareOpen}
-                    onOpenChange={setShareOpen}
-                />
+                <>
+                    <ShareDialog
+                        elementId={doc.id}
+                        elementType="canvas"
+                        open={shareOpen}
+                        onOpenChange={setShareOpen}
+                    />
+                    <MoveDocumentDialog
+                        document={doc}
+                        documents={documents}
+                        isOpen={isMoveOpen}
+                        onClose={() => setIsMoveOpen(false)}
+                        onMove={(id, targetParentId) => {
+                            onUpdateDocument?.({ ...doc, parentId: targetParentId });
+                            setIsMoveOpen(false);
+                        }}
+                    />
+                </>
             )}
 
-            <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2 z-50">
+            <div className={cn(
+                "absolute flex flex-col items-end gap-2 z-40 pointer-events-auto",
+                isMobile ? "bottom-20 right-4" : "bottom-6 right-6"
+            )}>
                 {isMobile ? (
                     <div className="text-[10px] text-muted-foreground opacity-50 hover:opacity-100 transition-opacity">
                         <div className="flex gap-2">

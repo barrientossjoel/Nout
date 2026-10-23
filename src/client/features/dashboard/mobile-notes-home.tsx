@@ -1,8 +1,30 @@
+'use client';
+
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Star, FileText, Frame, File, Trash2, Menu, Settings } from 'lucide-react';
+import {
+  Search,
+  Star,
+  FileText,
+  Frame,
+  FileDown,
+  Trash2,
+  Menu,
+  Settings,
+  LayoutGrid,
+  MoreVertical,
+  FolderInput,
+} from 'lucide-react';
 import type { Document } from '../../../core/types/notes';
 import { triggerHaptic } from '../../lib/utils/haptics';
 import { cn } from '../../lib/utils/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../components/ui/dropdown-menu';
+import { MoveDocumentDialog } from '../documents/components/move-document-dialog';
 
 interface MobileNotesHomeProps {
   documents: Document[];
@@ -17,6 +39,14 @@ interface MobileNotesHomeProps {
 
 type FilterCategory = 'all' | 'favorites' | 'text' | 'canvas' | 'pdf';
 
+const FILTER_CHIPS = [
+  { id: 'all', label: 'Todas', icon: LayoutGrid },
+  { id: 'favorites', label: 'Favoritas', icon: Star },
+  { id: 'text', label: 'Notas', icon: FileText },
+  { id: 'canvas', label: 'Lienzos', icon: Frame },
+  { id: 'pdf', label: 'PDFs', icon: FileDown },
+] as const;
+
 export function MobileNotesHome({
   documents,
   onOpenDocument,
@@ -29,25 +59,28 @@ export function MobileNotesHome({
 }: MobileNotesHomeProps) {
   const [filter, setFilter] = useState<FilterCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [movingDoc, setMovingDoc] = useState<Document | null>(null);
 
   const filteredDocs = useMemo(() => {
-    return documents.filter((doc) => {
-      // Category filter
-      if (filter === 'favorites' && !doc.isFavorite) return false;
-      if (filter === 'text' && doc.type !== 'text') return false;
-      if (filter === 'canvas' && doc.type !== 'canvas') return false;
-      if (filter === 'pdf' && doc.type !== 'pdf') return false;
+    return documents
+      .filter((doc) => {
+        // Category filter
+        if (filter === 'favorites' && !doc.isFavorite) return false;
+        if (filter === 'text' && doc.type !== 'text') return false;
+        if (filter === 'canvas' && doc.type !== 'canvas') return false;
+        if (filter === 'pdf' && doc.type !== 'pdf') return false;
 
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const titleMatch = doc.title?.toLowerCase().includes(q);
-        const contentMatch = typeof doc.content === 'string' && doc.content.toLowerCase().includes(q);
-        return titleMatch || contentMatch;
-      }
+        // Search query filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const titleMatch = doc.title?.toLowerCase().includes(q);
+          const contentMatch = typeof doc.content === 'string' && doc.content.toLowerCase().includes(q);
+          return titleMatch || contentMatch;
+        }
 
-      return true;
-    }).sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+        return true;
+      })
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
   }, [documents, filter, searchQuery]);
 
   const formatDate = (dateStr?: string | Date | null) => {
@@ -61,12 +94,44 @@ export function MobileNotesHome({
   };
 
   const getPlainTextSnippet = (doc: Document) => {
+    if (doc.type === 'canvas') {
+      try {
+        const parsed = typeof doc.content === 'string' ? JSON.parse(doc.content) : doc.content;
+        const count = Array.isArray(parsed) ? parsed.length : (parsed?.nodes?.length || 0);
+        return count > 0 ? `Lienzo con ${count} ${count === 1 ? 'elemento' : 'elementos'}` : 'Lienzo visual vacío';
+      } catch {
+        return 'Lienzo visual';
+      }
+    }
+    if (doc.type === 'pdf') {
+      return 'Documento PDF adjunto';
+    }
     if (!doc.content) return 'Sin contenido adicional';
     if (typeof doc.content === 'string') {
       const clean = doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim();
-      return clean.slice(0, 100) || 'Sin contenido adicional';
+      return clean.slice(0, 110) || 'Sin contenido adicional';
     }
-    return 'Lienzo visual';
+    return 'Documento';
+  };
+
+  const handleToggleFavorite = (doc: Document) => {
+    triggerHaptic('selection');
+    const updated = { ...doc, isFavorite: !doc.isFavorite };
+    onUpdateDocument?.(updated);
+    import('../../actions/actions').then(({ updateDocument }) => {
+      updateDocument(doc.id, { isFavorite: updated.isFavorite });
+    });
+  };
+
+  const handleMove = (docId: string, newParentId: string | null) => {
+    const target = documents.find((d) => d.id === docId);
+    if (target) {
+      const updated = { ...target, parentId: newParentId };
+      onUpdateDocument?.(updated);
+      import('../../actions/actions').then(({ updateDocument }) => {
+        updateDocument(docId, { parentId: newParentId });
+      });
+    }
   };
 
   return (
@@ -80,7 +145,7 @@ export function MobileNotesHome({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           {onToggleSidebar && (
             <button
               type="button"
@@ -125,18 +190,11 @@ export function MobileNotesHome({
         </div>
       </div>
 
-      {/* M3 Horizontal Filter Chips */}
+      {/* M3 Horizontal Filter Chips (Vector Icons, No Emojis) */}
       <div className="flex items-center gap-2 overflow-x-auto px-4 mt-3 py-1 no-scrollbar shrink-0">
-        {(
-          [
-            { id: 'all', label: 'Todas' },
-            { id: 'favorites', label: '⭐ Favoritas' },
-            { id: 'text', label: '📝 Notas' },
-            { id: 'canvas', label: '🎨 Lienzos' },
-            { id: 'pdf', label: '📄 PDFs' },
-          ] as const
-        ).map((chip) => {
+        {FILTER_CHIPS.map((chip) => {
           const isActive = filter === chip.id;
+          const ChipIcon = chip.icon;
           return (
             <button
               key={chip.id}
@@ -146,13 +204,14 @@ export function MobileNotesHome({
                 setFilter(chip.id);
               }}
               className={cn(
-                'px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-95 border',
+                'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-95 border',
                 isActive
                   ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                   : 'bg-secondary/60 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground'
               )}
             >
-              {chip.label}
+              <ChipIcon className={cn('w-3.5 h-3.5', isActive ? 'text-primary-foreground' : 'text-muted-foreground')} />
+              <span>{chip.label}</span>
             </button>
           );
         })}
@@ -176,7 +235,7 @@ export function MobileNotesHome({
           </div>
         ) : (
           filteredDocs.map((doc) => {
-            const Icon = doc.type === 'canvas' ? Frame : doc.type === 'pdf' ? File : FileText;
+            const Icon = doc.type === 'canvas' ? Frame : doc.type === 'pdf' ? FileDown : FileText;
 
             return (
               <article
@@ -195,9 +254,67 @@ export function MobileNotesHome({
                     </h2>
                   </div>
 
-                  {doc.isFavorite && (
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {doc.isFavorite && (
+                      <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    )}
+
+                    {/* Card Actions Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerHaptic('light');
+                          }}
+                          className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90 transition-all"
+                          aria-label="Opciones de nota"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl">
+                        <DropdownMenuItem
+                          className="cursor-pointer gap-2 py-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleFavorite(doc);
+                          }}
+                        >
+                          <Star className={cn('w-4 h-4', doc.isFavorite && 'text-amber-400 fill-amber-400')} />
+                          <span>{doc.isFavorite ? 'Quitar favorita' : 'Marcar favorita'}</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          className="cursor-pointer gap-2 py-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMovingDoc(doc);
+                          }}
+                        >
+                          <FolderInput className="w-4 h-4 text-muted-foreground" />
+                          <span>Mover a...</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+
+                        {onDeleteDocument && (
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2 py-2 text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerHaptic('light');
+                              onDeleteDocument(doc.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Eliminar</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
 
                 <p className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
@@ -206,28 +323,24 @@ export function MobileNotesHome({
 
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground/70 mt-3 pt-2 border-t border-border/30">
                   <span>{formatDate(doc.updatedAt)}</span>
-                  <div className="flex items-center gap-2">
-                    {onDeleteDocument && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          triggerHaptic('light');
-                          onDeleteDocument(doc.id);
-                        }}
-                        className="p-1 text-muted-foreground/50 hover:text-destructive active:scale-90 transition-colors"
-                        aria-label="Eliminar nota"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+                  <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-medium">
+                    {doc.type === 'canvas' ? 'Lienzo' : doc.type === 'pdf' ? 'PDF' : 'Nota'}
+                  </span>
                 </div>
               </article>
             );
           })
         )}
       </main>
+
+      {/* Move Document Dialog */}
+      <MoveDocumentDialog
+        document={movingDoc}
+        documents={documents}
+        isOpen={Boolean(movingDoc)}
+        onClose={() => setMovingDoc(null)}
+        onMove={handleMove}
+      />
     </div>
   );
 }

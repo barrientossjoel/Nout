@@ -53,14 +53,14 @@ export function CanvasToolbar({
     const isEraser = activeTool === 'eraser'
 
     const containerClasses = isMobile
-        ? "absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 p-1 bg-secondary shadow-lg z-50 items-center rounded-3xl py-2 w-12"
+        ? "fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-row items-center gap-1 px-2.5 py-1.5 bg-card/95 backdrop-blur-md border border-border/80 shadow-2xl z-50 rounded-2xl max-w-[96vw] overflow-x-auto no-scrollbar pointer-events-auto"
         : "flex gap-1 p-1 bg-secondary shadow-lg items-center flex-row rounded-full px-2 h-12 pointer-events-auto"
 
     const dividerClasses = isMobile
-        ? "w-8 h-px bg-border/20 my-1"
+        ? "h-6 w-px bg-border/40 mx-1 shrink-0"
         : "h-8 w-px bg-border/20 mx-1"
 
-    const dropdownSide = isMobile ? 'right' : 'top'
+    const dropdownSide = 'top'
     const dropdownAlign = 'center'
 
     const pencilDropdown = (

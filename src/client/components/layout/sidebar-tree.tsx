@@ -22,7 +22,8 @@ import type { Document } from '../../../core/types/notes'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 
 import { RenameDialog } from '../../components/ui/rename-dialog'
-import { Pencil, Link2 } from 'lucide-react'
+import { Pencil, Link2, FolderInput } from 'lucide-react'
+import { MoveDocumentDialog } from '../../features/documents/components/move-document-dialog'
 import { useLanguage } from '../../context/LanguageContext'
 
 interface SidebarTreeProps {
@@ -43,13 +44,14 @@ interface TreeNodeProps extends Omit<SidebarTreeProps, 'documents' | 'activeDocu
     isActive: boolean
     activeDocumentId?: string // keep it to pass down recursion, but don't use it directly for active state
     onInitiateRename: (node: Document) => void
+    onInitiateMove?: (node: Document) => void
     onDoubleClickDocument?: (id: string) => void
 }
 
 const MemoizedTreeNode = React.memo(function TreeNode({
     node, level, index, isActive, activeDocumentId,
     onSelectDocument, onCreateDocument, onDeleteDocument,
-    onMoveDocument, onUpdateDocument, onInitiateRename, onDoubleClickDocument
+    onMoveDocument, onUpdateDocument, onInitiateRename, onInitiateMove, onDoubleClickDocument
 }: TreeNodeProps) {
     const [isExpanded, setIsExpanded] = useState(node.isExpanded ?? false)
     const hasChildren = node.children && node.children.length > 0
@@ -133,6 +135,10 @@ const MemoizedTreeNode = React.memo(function TreeNode({
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Rename
                                             </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onInitiateMove?.(node); }}>
+                                                <FolderInput className="mr-2 h-4 w-4" />
+                                                Mover a...
+                                            </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDeleteDocument(node.id); }} className="text-destructive">
                                                 <Trash className="mr-2 h-4 w-4" />
@@ -165,6 +171,10 @@ const MemoizedTreeNode = React.memo(function TreeNode({
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Rename
                             </ContextMenuItem>
+                            <ContextMenuItem onClick={(e) => { e.stopPropagation(); onInitiateMove?.(node); }}>
+                                <FolderInput className="mr-2 h-4 w-4" />
+                                Mover a...
+                            </ContextMenuItem>
                             <ContextMenuSeparator />
                             <ContextMenuItem onClick={(e) => { e.stopPropagation(); onDeleteDocument(node.id); }} className="text-destructive">
                                 <Trash className="mr-2 h-4 w-4" />
@@ -195,6 +205,7 @@ const MemoizedTreeNode = React.memo(function TreeNode({
                                             onMoveDocument={onMoveDocument}
                                             onUpdateDocument={onUpdateDocument}
                                             onInitiateRename={onInitiateRename}
+                                            onInitiateMove={onInitiateMove}
                                             onDoubleClickDocument={onDoubleClickDocument}
                                         />
                                     ))}
@@ -263,8 +274,9 @@ export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onC
         }
     };
 
-    // Rename Logic
+    // Rename & Move Logic
     const [renameNode, setRenameNode] = useState<Document | null>(null)
+    const [movingNode, setMovingNode] = useState<Document | null>(null)
 
     const handleRename = (newName: string) => {
         if (!renameNode) return
@@ -309,6 +321,7 @@ export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onC
                                 onMoveDocument={onMoveDocument}
                                 onUpdateDocument={onUpdateDocument}
                                 onInitiateRename={setRenameNode}
+                                onInitiateMove={setMovingNode}
                                 onDoubleClickDocument={onDoubleClickDocument}
                             />
                         ))}
@@ -329,6 +342,17 @@ export function SidebarTree({ documents, activeDocumentId, onSelectDocument, onC
                 onRename={handleRename}
                 initialValue={renameNode?.title || ''}
                 title={`Rename ${renameNode?.type === 'canvas' ? 'Canvas' : 'Page'}`}
+            />
+
+            <MoveDocumentDialog
+                document={movingNode}
+                documents={documents}
+                isOpen={Boolean(movingNode)}
+                onClose={() => setMovingNode(null)}
+                onMove={(id: string, targetParentId: string | null) => {
+                    onMoveDocument?.(id, targetParentId)
+                    setMovingNode(null)
+                }}
             />
         </DragDropContext>
     )
