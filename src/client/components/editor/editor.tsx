@@ -93,6 +93,12 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
 
     // ── Yjs + PartyKit collaboration session ──────────────────────────────────
     const isCollaborative = Boolean(documentId)
+    const seeded = useRef(false)
+
+    useEffect(() => {
+        seeded.current = false
+    }, [documentId])
+
     const session = useMemo(() => {
         if (!documentId) return null
         return acquireCollabSession(`note-${documentId}`)
@@ -169,6 +175,9 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
         content: content ?? undefined,
         editable: editable,
         onUpdate: ({ editor }) => {
+            // Guard: do not propagate transient empty state before collaborative hydration completes
+            if (isCollaborative && !seeded.current) return;
+
             try {
                 // @ts-ignore
                 const markdown = editor.storage.markdown.getMarkdown();
@@ -364,13 +373,8 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
     // ─── Content management ────────────────────────────────────────────────────
     //
     // Non-collaborative: sync `content` prop to the editor at every change.
-    // Collaborative: on first load, if the Yjs room is empty, seed from DB.
-    //   The `content` prop is passed to useEditor as the initial value, but
-    //   when the component mounts with content='' (document data not yet fetched),
-    //   TipTap initialises with an empty doc. We call setContent() once the DB
-    //   data arrives AND the Yjs room confirms it has no prior state.
-
-    const seeded = useRef(false);
+    // Collaborative: hydrate immediately from local IndexedDB cache or DB content.
+    //   Never wait for remote WebSocket connection/sync to display local/persisted content.
 
     useEffect(() => {
         if (!editor) return;
@@ -384,46 +388,39 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
             return;
         }
 
-        // Collaborative path — run once per document (seeded guard)
-        if (seeded.current) return;
-        if (content === null || content === undefined) return; // Wait until the API has returned real content
+        // Collaborative path — run once per document
+        if (seeded.current || content === null || content === undefined) return;
 
         const attemptSeed = () => {
-            if (seeded.current) return;
-            
-            // Wait for IndexedDB to finish loading local state before we decide to seed
-            if (!session?.idb.synced) {
-                console.log('[Editor] IDB not yet synced, deferring seed...');
-                setTimeout(attemptSeed, 50);
-                return;
-            }
+            if (seeded.current || !editor) return;
 
+            // Check if Yjs doc already has content (from IndexedDB cache or active peers)
             // @ts-ignore
             const currentMarkdown = editor.storage.markdown?.getMarkdown()?.trim() || '';
             const isReallyEmpty = currentMarkdown === '' || currentMarkdown === '\n';
-            
-            console.log(`[Editor] Attempting seed. Room empty: ${isReallyEmpty}, DB has content: ${!!content}`);
-            
-            if (isReallyEmpty && content && content !== '') {
-                console.log('[Editor] Seeding TipTap with DB content');
-                editor.commands.setContent(content);
+
+            if (isReallyEmpty && content && content.trim() !== '') {
+                // Seed immediately without firing an onUpdate back to parent (avoids dirty autosave)
+                editor.commands.setContent(content, { emitUpdate: false });
             }
             seeded.current = true;
         };
 
-        if (provider.synced) {
-            console.log('[Editor] Provider already synced, seeding...');
-            setTimeout(attemptSeed, 0);
-        } else {
-            console.log('[Editor] Waiting for provider sync...');
-            const onSync = () => {
-                console.log('[Editor] Provider synced!');
-                setTimeout(attemptSeed, 0);
+        // Local-First: IndexedDB cache loads in ~5-15ms. We never wait for network/WebSocket to show content.
+        if (session?.idb.synced) {
+            attemptSeed();
+        } else if (session?.idb.whenSynced) {
+            let timeoutId: ReturnType<typeof setTimeout>;
+            const done = () => {
+                clearTimeout(timeoutId);
+                attemptSeed();
             };
-            provider.on('sync', onSync);
-            return () => provider.off('sync', onSync);
+            session.idb.whenSynced.then(done).catch(done);
+            timeoutId = setTimeout(done, 50);
+        } else {
+            attemptSeed();
         }
-    }, [editor, isCollaborative, provider, content]);
+    }, [editor, isCollaborative, provider, content, session]);
     // ──────────────────────────────────────────────────────────────────────────
 
     // Keep editable state in sync

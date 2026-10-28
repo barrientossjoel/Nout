@@ -15,13 +15,13 @@ interface SessionRecord {
 const registry = new Map<string, SessionRecord>()
 
 const createProvider = (room: string, ydoc: Y.Doc): CollabProvider => {
+    if (import.meta.env.DEV) {
+        return new WebsocketProvider(`ws://${window.location.host}/ws`, room, ydoc)
+    }
     const pkHost = import.meta.env.VITE_PARTYKIT_HOST
     if (pkHost) {
         const host = pkHost.replace(/^https?:\/\//, '')
         return new YPartyKitProvider(host, room, ydoc)
-    }
-    if (import.meta.env.DEV) {
-        return new WebsocketProvider(`ws://${window.location.host}/ws`, room, ydoc)
     }
     return new YPartyKitProvider(window.location.hostname, room, ydoc)
 }
@@ -52,6 +52,7 @@ export const acquireCollabSession = (room: string): CollabSession => {
     const release = () => {
         current.refCount--
         if (current.refCount <= 0) {
+            // Keep session warm for 2 minutes to allow instant tab/note switching
             current.timer = setTimeout(() => {
                 if (current.refCount <= 0) {
                     current.provider.destroy()
@@ -59,7 +60,7 @@ export const acquireCollabSession = (room: string): CollabSession => {
                     current.ydoc.destroy()
                     registry.delete(room)
                 }
-            }, 250)
+            }, 120_000)
         }
     }
 
