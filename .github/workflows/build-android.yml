@@ -62,7 +62,15 @@ jobs:
       - name: Prepare APK Artifact
         run: |
           mkdir -p dist-apk
-          cp src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk dist-apk/nout-arm64.apk
+          APK_SRC=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" | head -n 1)
+          if [ -z "$APK_SRC" ]; then
+            echo "Error: No release APK found in build outputs!"
+            find src-tauri/gen/android/app/build/outputs/apk || true
+            exit 1
+          fi
+          echo "Found APK at: $APK_SRC"
+          cp "$APK_SRC" dist-apk/nout-arm64.apk
+          ls -lh dist-apk/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
