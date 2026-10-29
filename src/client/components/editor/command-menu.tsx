@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { FileText, Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Music } from 'lucide-react'
+import { FileText, Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Music, Pencil } from 'lucide-react'
 import { cn } from '../../lib/utils/utils'
 import type { Document } from '../../../core/types/notes'
 
@@ -57,9 +57,11 @@ export function CommandMenu({ isOpen, position, query, type, documents, onSelect
         { label: 'Quote', value: '> ', icon: Quote },
         { label: 'Code Block', value: '```\n\n```', icon: Code },
         { label: 'Image', value: 'image', icon: ImageIcon },
+        { label: 'Drawing', value: 'drawing', icon: Pencil },
         { label: 'Audio', value: 'audio', icon: Music },
         { label: 'Table', value: 'table', icon: FileText },
     ]
+
 
     const items = type === 'slash'
         ? slashCommands.filter(item => item.label.toLowerCase().includes(query.toLowerCase()))

@@ -5,7 +5,8 @@ import { format, isSameDay } from 'date-fns'
 import { cn } from '../../lib/utils/utils'
 import type { Document as NoteDocument } from '../../../core/types/notes'
 import { Button } from '../../components/ui/button'
-import { PanelLeft, PanelTop, MessageSquare } from 'lucide-react'
+import { PanelLeft, PanelTop, MessageSquare, ExternalLink } from 'lucide-react'
+import { createGoogleCalendarUrl } from '../../../core/services/google-calendar'
 
 interface CalendarViewProps {
   documents: NoteDocument[]
@@ -30,14 +31,14 @@ export function CalendarView({
 }: CalendarViewProps) {
   const [selected, setSelected] = useState<Date>(new Date())
 
-  const notesForDay = React.useMemo(() => {
-    if (!selected) return []
-    
-    return documents.filter(doc => {
-      const dateStr = doc.updatedAt || doc.createdAt || doc.date
-      return dateStr ? isSameDay(new Date(dateStr), selected) : false
-    })
-  }, [documents, selected])
+  const notesForDay = React.useMemo(() => (
+    selected
+      ? documents.filter(doc => {
+          const dateStr = doc.updatedAt || doc.createdAt || doc.date
+          return dateStr ? isSameDay(new Date(dateStr), selected) : false
+        })
+      : []
+  ), [documents, selected])
 
   return (
     <div className="flex flex-col h-full bg-muted/50 animate-in fade-in duration-300">
@@ -59,6 +60,16 @@ export function CalendarView({
         </div>
 
         <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('https://calendar.google.com', '_blank')}
+            className="text-xs h-8 gap-1.5"
+            title="Abrir Google Calendar"
+          >
+            <span>Google Calendar</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
           {onToggleTabs && (
             <Button
               variant="ghost"
@@ -113,9 +124,29 @@ export function CalendarView({
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{doc.title || "Untitled"}</span>
-                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground">
-                          {format(new Date(dateStr), 'p')}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const snippet = typeof doc.content === 'string' ? doc.content.slice(0, 150) : '';
+                              const url = createGoogleCalendarUrl({
+                                title: doc.title || 'Nota de nOut',
+                                date: selected,
+                                details: snippet,
+                              });
+                              window.open(url, '_blank');
+                            }}
+                            className="p-1 rounded-md text-muted-foreground hover:text-primary transition-colors text-[10px] flex items-center gap-1"
+                            title="Agendar en Google Calendar"
+                          >
+                            <span>GCal</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                          <span className="text-[10px] text-muted-foreground group-hover:text-foreground">
+                            {format(new Date(dateStr), 'p')}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );

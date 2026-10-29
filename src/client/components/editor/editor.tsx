@@ -266,6 +266,9 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
         editorProps: {
             attributes: {
                 class: `prose dark:prose-invert prose-sm focus:outline-none min-h-[60vh] max-w-full leading-relaxed px-0 py-4 ${className}`,
+                spellcheck: 'true',
+                autocorrect: 'on',
+                autocapitalize: 'sentences',
             },
             handleClick: (view, pos, event) => {
                 const target = event.target as HTMLElement

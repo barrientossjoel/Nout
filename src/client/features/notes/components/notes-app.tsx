@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { Sidebar, SidebarView } from "../../../components/layout/sidebar"
 import { DocumentView } from "../../documents/document-view"
@@ -17,14 +17,16 @@ import {
   Separator as PanelResizeHandle
 } from 'react-resizable-panels'
 import { cn } from '../../../lib/utils/utils'
+import { triggerHaptic } from '../../../lib/utils/haptics'
 import { SearchCommand } from '../../../components/search/search-command'
 import { splitNode, addTabToPane, updateTab, findLayoutNode, pinTab, closeTab, findFirstPaneId } from '../../../lib/utils/layout-utils'
 import { CanvasView } from '../../canvas/canvas-view'
 import { Button } from '../../../components/ui/button'
 import { PanelLeft } from 'lucide-react'
 import { useWorkspaces } from '../../../hooks/useWorkspaces'
-import { MobileNav } from '../../../components/layout/mobile-nav'
+import { MobileNav, type NavPosition } from '../../../components/layout/mobile-nav'
 import { KeyboardShortcutsProvider, useKeyboardShortcuts, matchesShortcut } from '../../../context/KeyboardShortcutsContext'
+
 
 export default function NotesApp() {
   return (
@@ -74,17 +76,30 @@ function NotesAppInner() {
   const [settingsTab, setSettingsTab] = useState<string>('account')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
 
+  const [navConfig, setNavConfig] = useState<{ position: NavPosition; isCollapsed: boolean }>(() => ({
+    position: (typeof window !== 'undefined' && (localStorage.getItem('nout_mobile_nav_pos') as NavPosition)) || 'bottom',
+    isCollapsed: typeof window !== 'undefined' && localStorage.getItem('nout_mobile_nav_collapsed') === 'true',
+  }))
+
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
+
   useEffect(() => {
     const handleOpenSettings = (e: Event) => {
-      const custom = e as CustomEvent<{ tab?: string }>
-      if (custom.detail?.tab) {
-        setSettingsTab(custom.detail.tab)
-      }
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab
+      tab && setSettingsTab(tab)
       setIsSettingsOpen(true)
-      if (isMobile) setShowSidebar(false)
+      isMobile && setShowSidebar(false)
+    }
+    const handleNavChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ position: NavPosition; isCollapsed: boolean }>).detail
+      detail && setNavConfig(detail)
     }
     window.addEventListener('nout:open_settings', handleOpenSettings)
-    return () => window.removeEventListener('nout:open_settings', handleOpenSettings)
+    window.addEventListener('nout:mobile_nav_change', handleNavChange)
+    return () => {
+      window.removeEventListener('nout:open_settings', handleOpenSettings)
+      window.removeEventListener('nout:mobile_nav_change', handleNavChange)
+    }
   }, [isMobile])
 
   // Global search shortcut (configurable)
@@ -103,13 +118,8 @@ function NotesAppInner() {
 
   // Validate currentView against documents when loaded
   useEffect(() => {
-    if (!isLoading && currentView !== 'dashboard' && currentView !== 'calendar' && currentView !== 'trash' && currentView !== 'graph' && currentView !== 'ai') {
-      const exists = documents.some(d => d.id === currentView)
-      if (!exists) {
-        // If the document doesn't exist (e.g. deleted on another device), fallback to dashboard
-        setCurrentView('dashboard')
-      }
-    }
+    const isSpecial = ['dashboard', 'calendar', 'trash', 'graph', 'ai'].includes(currentView)
+    !isLoading && !isSpecial && !documents.some(d => d.id === currentView) && setCurrentView('dashboard')
   }, [isLoading, documents, currentView])
 
   // Find active document (for sidebar highlights, maybe not enough for layout)
@@ -373,12 +383,40 @@ function NotesAppInner() {
           </div>
           {(() => {
             const isInsideDoc = isMobile && documents.some(d => d.id === currentView)
+            const NAV_PADDING_MAP: Record<NavPosition, string> = {
+              bottom: "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]",
+              top: "pt-[calc(4rem+env(safe-area-inset-top,0px))]",
+              left: "pl-16",
+              right: "pr-16",
+            }
+            const mobilePadding = isMobile && !isInsideDoc && !navConfig.isCollapsed ? NAV_PADDING_MAP[navConfig.position] : ""
 
             return (
-              <main className={cn(
-                "flex-1 overflow-hidden bg-background flex flex-col relative",
-                isMobile && !isInsideDoc && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
-              )}>
+              <main
+                onTouchStart={(e) => {
+                  if (!isMobile || !isInsideDoc || e.touches.length !== 1) return
+                  const t = e.touches[0]
+                  touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
+                }}
+                onTouchEnd={(e) => {
+                  if (!touchStartRef.current || !isMobile || !isInsideDoc) return
+                  const t = e.changedTouches[0]
+                  const deltaX = t.clientX - touchStartRef.current.x
+                  const deltaY = t.clientY - touchStartRef.current.y
+                  const deltaTime = Date.now() - touchStartRef.current.time
+                  touchStartRef.current = null
+
+                  // Tactile swipe gesture back to dashboard from inside doc
+                  if (Math.abs(deltaX) > 75 && Math.abs(deltaY) < 60 && deltaTime < 550) {
+                    triggerHaptic('light')
+                    handleNavigate('dashboard')
+                  }
+                }}
+                className={cn(
+                  "flex-1 overflow-hidden bg-background flex flex-col relative transition-all duration-200",
+                  mobilePadding
+                )}
+              >
                 <Workspace
                   layout={layout}
                   documents={documents}
@@ -393,9 +431,9 @@ function NotesAppInner() {
                   onToggleSidebar={() => setShowSidebar(prev => !prev)}
                   refreshDocuments={refresh}
                   onOpenSettings={(tab?: string) => {
-                    if (tab) setSettingsTab(tab)
+                    tab && setSettingsTab(tab)
                     setIsSettingsOpen(true)
-                    if (isMobile) setShowSidebar(false)
+                    isMobile && setShowSidebar(false)
                   }}
                 />
 
@@ -410,33 +448,21 @@ function NotesAppInner() {
                       documents={documents}
                       tabs={activeTabs}
                       onSelectTab={(id) => handleNavigate(id)}
-                      onCloseTab={(id) => {
-                        if (activePane?.id) {
-                          const newLayout = closeTab(layout, activePane.id, id)
-                          setLayout(newLayout)
-                        }
-                      }}
+                      onCloseTab={(id) => activePane?.id && setLayout(closeTab(layout, activePane.id, id))}
                       onNavigate={(view) => {
-                        if (view === 'search') {
-                          setIsSearchOpen(true)
-                          if (isMobile) setShowSidebar(false)
-                        } else {
-                          handleNavigate(view, false, true)
-                        }
+                        view === 'search'
+                          ? (setIsSearchOpen(true), isMobile && setShowSidebar(false))
+                          : handleNavigate(view, false, true)
                       }}
-                      onToggleSidebar={() => setShowSidebar(prev => !prev)}
+                      onToggleSidebar={() => setShowSidebar((prev) => !prev)}
                       onCreateDocument={(type) => handleCreateDocument(null, type)}
                       onOpenSettings={() => {
                         setIsSettingsOpen(true)
-                        if (isMobile) setShowSidebar(false)
+                        isMobile && setShowSidebar(false)
                       }}
-                      onPinTab={(id: string, pinned: boolean) => {
-                        if (activePane?.id) {
-                          const newLayout = pinTab(layout, activePane.id, id, pinned)
-                          setLayout(newLayout)
-                        }
-                      }}
+                      onPinTab={(id, pinned) => activePane?.id && setLayout(pinTab(layout, activePane.id, id, pinned))}
                       previewTabId={activePane?.type === 'pane' ? activePane.previewTabId : null}
+
                     />
                   )
                 })()}

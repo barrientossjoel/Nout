@@ -31,6 +31,7 @@ import { Editor, EditorRef } from '../../components/editor/editor'
 import { NotesPanel } from '../notes/components/notes-panel'
 import { useLanguage } from '../../context/LanguageContext'
 import { ShareDialog } from '../collaboration/share-dialog'
+import { DrawingModal } from '../../components/editor/drawing-modal'
 
 
 interface DocumentViewProps {
@@ -87,6 +88,7 @@ export function DocumentView({
     const isMobile = useMediaQuery('(max-width: 768px)')
     const [shareOpen, setShareOpen] = useState(false)
     const [moveDialogOpen, setMoveDialogOpen] = useState(false)
+    const [isDrawingOpen, setIsDrawingOpen] = useState(false)
 
     // Command Menu State
     const [commandMenu, setCommandMenu] = useState<{
@@ -277,6 +279,9 @@ export function DocumentView({
                 const url = window.prompt('Enter image URL')
                 url ? chain.setImage({ src: url }).run() : chain.run()
             },
+            'drawing': () => {
+                setIsDrawingOpen(true)
+            },
             'audio': () => {
                 const url = window.prompt('Enter audio URL')
                 // @ts-ignore
@@ -288,20 +293,11 @@ export function DocumentView({
             }
         }
 
-        // Execute action based on matched value or fallback to dynamic ones
-        if (value in actions) {
-            actions[value]()
-        } else if (value.startsWith('```')) {
-            chain.toggleCodeBlock().run()
-        } else {
-            // Mentions, links, or plain content
-            chain.insertContent(value).run()
-        }
+        // Execute action based on matched value or fallback to dynamic content
+        actions[value]?.() ?? (value.startsWith('```') ? chain.toggleCodeBlock().run() : chain.insertContent(value).run())
 
         setCommandMenu(prev => ({ ...prev, isOpen: false }))
     }, [commandMenu.query?.length, commandMenu.triggerIndex])
-
-
 
     return (
         <div className={cn("flex flex-col h-full animate-in fade-in duration-300", hideBorder ? "bg-muted/50" : "bg-background")}>
@@ -314,11 +310,7 @@ export function DocumentView({
                             size="sm"
                             onClick={() => {
                                 triggerHaptic('light');
-                                if (onNavigate) {
-                                    onNavigate('dashboard');
-                                } else if (onClose) {
-                                    onClose();
-                                }
+                                onNavigate ? onNavigate('dashboard') : onClose?.();
                             }}
                             className="flex items-center gap-1 px-2 -ml-1 text-primary font-medium hover:bg-secondary/50 rounded-xl active:scale-95 transition-all min-h-[44px]"
                             aria-label="Volver a Notas"
@@ -447,6 +439,16 @@ export function DocumentView({
                         </>
                     )}
 
+
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { triggerHaptic('light'); setIsDrawingOpen(true); }}
+                        title="Dibujar a mano alzada"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground active:scale-95"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </Button>
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -672,7 +674,13 @@ export function DocumentView({
                 )}
             </div>
 
-
+            <DrawingModal
+                open={isDrawingOpen}
+                onOpenChange={setIsDrawingOpen}
+                onInsert={(dataUrl) => {
+                    editorRef.current?.editor?.chain().focus().setImage({ src: dataUrl }).run()
+                }}
+            />
         </div>
     )
 }

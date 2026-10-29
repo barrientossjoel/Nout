@@ -24,7 +24,24 @@ import { useKeyboardShortcuts, type ShortcutId } from "../../context/KeyboardSho
 import { AiSettings } from "./ai-settings"
 import { pickVaultFolder, saveVaultPath } from "../../../core/services/vault"
 import { isTauri } from "../../../core/utils/platform"
+import { importObsidianVault } from "../../../core/services/obsidian-import"
 import Login from "../../pages/Login"
+
+const FONT_FAMILIES = [
+  { id: 'system', label: 'Sistema', family: "system-ui, -apple-system, sans-serif" },
+  { id: 'inter', label: 'Inter', family: "'Inter', sans-serif", web: 'Inter:wght@400;500;600;700' },
+  { id: 'outfit', label: 'Outfit', family: "'Outfit', sans-serif", web: 'Outfit:wght@400;500;600;700' },
+  { id: 'roboto', label: 'Roboto', family: "'Roboto', sans-serif", web: 'Roboto:wght@400;500;700' },
+  { id: 'jetbrains', label: 'JetBrains', family: "'JetBrains Mono', monospace", web: 'JetBrains+Mono:wght@400;500' },
+  { id: 'playfair', label: 'Playfair', family: "'Playfair Display', serif", web: 'Playfair+Display:wght@400;600' },
+] as const
+
+const FONT_SIZES = [
+  { id: 'sm', label: 'Pequeño', size: '13px' },
+  { id: 'md', label: 'Normal', size: '15px' },
+  { id: 'lg', label: 'Grande', size: '17px' },
+  { id: 'xl', label: 'Extra', size: '19px' },
+] as const
 
 interface ShortcutItem {
     label: string
@@ -87,52 +104,90 @@ export function SettingsDialog({
     const { user, setUser, logout } = useAuth()
     const avatarInputRef = React.useRef<HTMLInputElement>(null)
 
+    const [selectedFont, setSelectedFont] = React.useState<string>(() =>
+      typeof window !== 'undefined' ? localStorage.getItem('nout_font_family') || 'system' : 'system'
+    )
+    const [selectedFontSize, setSelectedFontSize] = React.useState<string>(() =>
+      typeof window !== 'undefined' ? localStorage.getItem('nout_font_size') || 'md' : 'md'
+    )
+    const [navPos, setNavPos] = React.useState<string>(() =>
+      typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_nav_pos') || 'bottom' : 'bottom'
+    )
+    const [navCollapsed, setNavCollapsed] = React.useState<boolean>(() =>
+      typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_nav_collapsed') === 'true' : false
+    )
+    const [importStatus, setImportStatus] = React.useState<string | null>(null)
+
+    const handleFontChange = (fontId: string) => {
+      setSelectedFont(fontId)
+      localStorage.setItem('nout_font_family', fontId)
+      const font = FONT_FAMILIES.find((f) => f.id === fontId)
+      font && 'web' in font && font.web && !document.getElementById(`font-${fontId}`) && (
+        Object.assign(document.head.appendChild(document.createElement('link')), {
+          id: `font-${fontId}`,
+          rel: 'stylesheet',
+          href: `https://fonts.googleapis.com/css2?family=${font.web}&display=swap`,
+        })
+      )
+      document.documentElement.style.fontFamily = font?.family || 'inherit'
+    }
+
+    const handleFontSizeChange = (sizeId: string) => {
+      setSelectedFontSize(sizeId)
+      localStorage.setItem('nout_font_size', sizeId)
+      const size = FONT_SIZES.find((s) => s.id === sizeId)?.size || '15px'
+      document.documentElement.style.setProperty('--editor-font-size', size)
+    }
+
+    const handleMobileNavPosChange = (pos: string) => {
+      setNavPos(pos)
+      localStorage.setItem('nout_mobile_nav_pos', pos)
+      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: pos, isCollapsed: navCollapsed } }))
+    }
+
+    const handleMobileNavCollapseChange = (collapsed: boolean) => {
+      setNavCollapsed(collapsed)
+      localStorage.setItem('nout_mobile_nav_collapsed', String(collapsed))
+      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: navPos, isCollapsed: collapsed } }))
+    }
+
     React.useEffect(() => {
-        if (open && initialTab) {
-            setActiveTab(initialTab)
-            setShowMobileDetail(true)
-        }
+      open && initialTab && (setActiveTab(initialTab), setShowMobileDetail(true))
     }, [open, initialTab])
 
     React.useEffect(() => {
-        const handleCustomOpen = (e: Event) => {
-            const custom = e as CustomEvent<{ tab?: string }>
-            if (custom.detail?.tab) {
-                setActiveTab(custom.detail.tab)
-                setShowMobileDetail(true)
-            }
-            onOpenChange(true)
-        }
-        window.addEventListener('nout:open_settings', handleCustomOpen)
-        return () => window.removeEventListener('nout:open_settings', handleCustomOpen)
+      const handleCustomOpen = (e: Event) => {
+        const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab
+        tab && (setActiveTab(tab), setShowMobileDetail(true))
+        onOpenChange(true)
+      }
+      window.addEventListener('nout:open_settings', handleCustomOpen)
+      return () => window.removeEventListener('nout:open_settings', handleCustomOpen)
     }, [onOpenChange])
 
     const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-
-        const reader = new FileReader()
-        reader.onload = () => {
-            const img = new Image()
-            img.onload = () => {
-                const canvas = document.createElement('canvas')
-                const targetSize = 256
-                canvas.width = targetSize
-                canvas.height = targetSize
-                const ctx = canvas.getContext('2d')
-                if (ctx) {
-                    const size = Math.min(img.width, img.height)
-                    const startX = (img.width - size) / 2
-                    const startY = (img.height - size) / 2
-                    ctx.drawImage(img, startX, startY, size, size, 0, 0, targetSize, targetSize)
-                    const compressed = canvas.toDataURL('image/jpeg', 0.85)
-                    setUser(user ? { ...user, avatarUrl: compressed } : { id: 'local-user', name: 'Usuario Local', email: 'local@nout.app', avatarUrl: compressed })
-                }
-            }
-            img.src = reader.result as string
+      const file = e.target.files?.[0]
+      file && Object.assign(new FileReader(), {
+        onload: (ev: ProgressEvent<FileReader>) => {
+          const img = new Image()
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = 256
+            canvas.height = 256
+            const ctx = canvas.getContext('2d')
+            ctx && (
+              (() => {
+                const size = Math.min(img.width, img.height)
+                ctx.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 256, 256)
+                const compressed = canvas.toDataURL('image/jpeg', 0.85)
+                setUser(user ? { ...user, avatarUrl: compressed } : { id: 'local-user', name: 'Usuario Local', email: 'local@nout.app', avatarUrl: compressed })
+              })()
+            )
+          }
+          img.src = ev.target?.result as string
         }
-        reader.readAsDataURL(file)
-        e.target.value = ''
+      }).readAsDataURL(file)
+      e.target.value = ''
     }
 
     const handleRemoveAvatar = () => user && setUser({ ...user, avatarUrl: undefined })
@@ -146,10 +201,7 @@ export function SettingsDialog({
 
     const handleBrowseVault = async () => {
         const selected = await pickVaultFolder();
-        if (selected) {
-            setVaultPath(selected);
-            saveVaultPath(selected);
-        }
+        selected && (setVaultPath(selected), saveVaultPath(selected));
     };
 
     const handlePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -437,12 +489,34 @@ export function SettingsDialog({
                                                         size="sm"
                                                         className="text-xs text-muted-foreground hover:text-foreground h-7 px-2 shrink-0"
                                                         onClick={() => {
-                                                            onOpenChange(false);
-                                                            window.history.pushState({}, '', '/welcome');
-                                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                                             onOpenChange(false);
+                                                             window.history.pushState({}, '', '/welcome');
+                                                             window.dispatchEvent(new PopStateEvent('popstate'));
                                                         }}
                                                     >
                                                         {language === 'es' ? 'Ver pantalla de inicio' : 'Open welcome screen'}
+                                                    </Button>
+                                                </div>
+                                                <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                                                    <div>
+                                                        <span className="text-xs font-semibold text-foreground block">
+                                                            {language === 'es' ? 'Importar Bóveda de Obsidian' : 'Import Obsidian Vault'}
+                                                        </span>
+                                                        <span className="text-[11px] text-muted-foreground block">
+                                                            {importStatus || (language === 'es' ? 'Importa notas Markdown (.md) conservando carpetas' : 'Import Markdown notes keeping folder hierarchy')}
+                                                        </span>
+                                                    </div>
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="text-xs shrink-0"
+                                                        onClick={async () => {
+                                                            setImportStatus('Importando notas...');
+                                                            const res = await importObsidianVault();
+                                                            setImportStatus(res.success ? `¡${res.importedCount} notas importadas!` : (res.error || 'Cancelado'));
+                                                        }}
+                                                    >
+                                                        {language === 'es' ? 'Importar Obsidian' : 'Import Obsidian'}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -504,7 +578,97 @@ export function SettingsDialog({
                                                     {showResizeHandles ? t('enabled') : t('disabled')}
                                                 </Button>
                                             </div>
-                                        </div>
+
+                                            {/* Font Family selector */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-[clamp(0.75rem,2vw,1rem)] gap-3">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[clamp(13px,1.5vw,14px)] font-medium text-foreground">
+                                                        {language === 'es' ? 'Tipografía (Fuente)' : 'Font Family'}
+                                                    </span>
+                                                    <span className="text-[clamp(11px,1.2vw,12px)] text-muted-foreground mt-0.5">
+                                                        {language === 'es' ? 'Elige la fuente de la interfaz y tus notas' : 'Choose typeface for UI and notes'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-1 bg-muted/50 border border-border p-0.5 rounded-md shrink-0">
+                                                    {FONT_FAMILIES.map((f) => (
+                                                        <Button
+                                                            key={f.id}
+                                                            variant={selectedFont === f.id ? "secondary" : "ghost"}
+                                                            size="sm"
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => handleFontChange(f.id)}
+                                                        >
+                                                            {f.label}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Font Size selector */}
+                                            <div className="flex items-center justify-between p-[clamp(0.75rem,2vw,1rem)] gap-4">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[clamp(13px,1.5vw,14px)] font-medium text-foreground">
+                                                        {language === 'es' ? 'Tamaño de Letra' : 'Font Size'}
+                                                    </span>
+                                                    <span className="text-[clamp(11px,1.2vw,12px)] text-muted-foreground mt-0.5">
+                                                        {language === 'es' ? 'Escala de lectura en el editor' : 'Reading scale in editor'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1 bg-muted/50 border border-border p-0.5 rounded-md shrink-0">
+                                                    {FONT_SIZES.map((s) => (
+                                                        <Button
+                                                            key={s.id}
+                                                            variant={selectedFontSize === s.id ? "secondary" : "ghost"}
+                                                            size="sm"
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => handleFontSizeChange(s.id)}
+                                                        >
+                                                            {s.label}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Mobile Navigation bar settings */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-[clamp(0.75rem,2vw,1rem)] gap-3">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[clamp(13px,1.5vw,14px)] font-medium text-foreground">
+                                                        {language === 'es' ? 'Barra Móvil: Ubicación y Comportamiento' : 'Mobile Nav: Position & Behavior'}
+                                                    </span>
+                                                    <span className="text-[clamp(11px,1.2vw,12px)] text-muted-foreground mt-0.5">
+                                                        {language === 'es' ? 'Posición espacial y visibilidad de la barra' : 'Spatial position and visibility'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                                    <div className="flex items-center gap-0.5 bg-muted/50 border border-border p-0.5 rounded-md">
+                                                        {[
+                                                            { id: 'bottom', label: 'Abajo' },
+                                                            { id: 'top', label: 'Arriba' },
+                                                            { id: 'left', label: 'Izq' },
+                                                            { id: 'right', label: 'Der' },
+                                                        ].map((pos) => (
+                                                             <Button
+                                                                 key={pos.id}
+                                                                 variant={navPos === pos.id ? "secondary" : "ghost"}
+                                                                 size="sm"
+                                                                 className="h-6 px-1.5 text-[11px]"
+                                                                 onClick={() => handleMobileNavPosChange(pos.id)}
+                                                             >
+                                                                 {pos.label}
+                                                             </Button>
+                                                         ))}
+                                                     </div>
+                                                     <Button
+                                                         variant={navCollapsed ? "outline" : "secondary"}
+                                                         size="sm"
+                                                         className="h-7 text-xs"
+                                                         onClick={() => handleMobileNavCollapseChange(!navCollapsed)}
+                                                     >
+                                                         {navCollapsed ? (language === 'es' ? 'Colapsable (Activo)' : 'Collapsible') : (language === 'es' ? 'Siempre Fija' : 'Always Fixed')}
+                                                     </Button>
+                                                 </div>
+                                             </div>
+                                         </div>
                                     </div>
                                 </div>
                             )}

@@ -44,6 +44,12 @@ const FILTER_CHIPS = [
   { id: 'pdf', label: 'PDFs', icon: FileDown },
 ] as const;
 
+const DOC_TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string; snippetFallback: string }> = {
+  text: { icon: FileText, label: 'Nota', snippetFallback: 'Sin contenido' },
+  canvas: { icon: Frame, label: 'Lienzo', snippetFallback: 'Lienzo visual' },
+  pdf: { icon: FileDown, label: 'PDF', snippetFallback: 'Documento PDF' },
+};
+
 const SLOT_CONFIG: Record<HeaderSlot, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   profile: { label: 'Perfil (Avatar)', icon: UserIcon },
   search: { label: 'Búsqueda (Lupa)', icon: Search },
@@ -84,13 +90,12 @@ export function MobileNotesHome({
   );
 
   const [gridConfig, setGridConfig] = useState<MobileGridConfig>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('nout_mobile_grid');
-        if (saved) return JSON.parse(saved);
-      } catch {}
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_grid') : null;
+      return saved ? JSON.parse(saved) : { mode: 'masonry', columns: 2 };
+    } catch {
+      return { mode: 'masonry', columns: 2 };
     }
-    return { mode: 'masonry', columns: 2 };
   });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -160,35 +165,29 @@ export function MobileNotesHome({
     actions[slot]();
   };
 
-  const renderSlotTrigger = () => {
-    if (slot === 'profile') {
-      return (
-        <button
-          type="button"
-          aria-label="Perfil y opciones"
-          className="h-9 w-9 rounded-full border border-border/70 hover:border-primary/50 transition-transform active:scale-95 flex items-center justify-center overflow-hidden shrink-0 bg-secondary/70 shadow-xs focus-visible:outline-none"
-        >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.name || 'Perfil'} className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-xs font-semibold text-foreground">
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : <UserIcon className="w-4 h-4 text-muted-foreground" />}
-            </span>
-          )}
-        </button>
-      );
-    }
-    const SlotIcon = SLOT_CONFIG[slot].icon;
-    return (
-      <button
-        type="button"
-        aria-label={SLOT_CONFIG[slot].label}
-        className="p-2 rounded-full hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground"
-      >
-        <SlotIcon className="w-5 h-5" />
-      </button>
-    );
-  };
+  const renderSlotTrigger = () => slot === 'profile' ? (
+    <button
+      type="button"
+      aria-label="Perfil y opciones"
+      className="h-9 w-9 rounded-full border border-border/70 hover:border-primary/50 transition-transform active:scale-95 flex items-center justify-center overflow-hidden shrink-0 bg-secondary/70 shadow-xs focus-visible:outline-none"
+    >
+      {user?.avatarUrl ? (
+        <img src={user.avatarUrl} alt={user.name || 'Perfil'} className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-xs font-semibold text-foreground">
+          {user?.name ? user.name.slice(0, 2).toUpperCase() : <UserIcon className="w-4 h-4 text-muted-foreground" />}
+        </span>
+      )}
+    </button>
+  ) : (
+    <button
+      type="button"
+      aria-label={SLOT_CONFIG[slot].label}
+      className="p-2 rounded-full hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+    >
+      {React.createElement(SLOT_CONFIG[slot].icon, { className: 'w-5 h-5' })}
+    </button>
+  );
 
   return (
     <div ref={containerRef} className="flex flex-col h-full bg-background text-foreground overflow-y-auto pb-28 pt-1 select-none">
@@ -403,13 +402,14 @@ export function MobileNotesHome({
             }
           >
             {filteredDocs.map((doc) => {
-              const Icon = doc.type === 'canvas' ? Frame : doc.type === 'pdf' ? FileDown : FileText;
+              const meta = (doc.type && DOC_TYPE_META[doc.type]) ?? DOC_TYPE_META.text;
+              const Icon = meta.icon;
               const isDense = gridConfig.columns >= 3;
               const isVeryDense = gridConfig.columns >= 5;
 
               const snippet = typeof doc.content === 'string'
-                ? doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim().slice(0, isDense ? 45 : 120) || 'Sin contenido'
-                : doc.type === 'canvas' ? 'Lienzo visual' : 'Documento';
+                ? doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim().slice(0, isDense ? 45 : 120) || meta.snippetFallback
+                : meta.snippetFallback;
 
               const dateStr = doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
               const isExpanding = expandingId === doc.id;
@@ -481,7 +481,7 @@ export function MobileNotesHome({
                   <div className={cn("flex items-center justify-between text-muted-foreground/70 mt-2.5 pt-1.5 border-t border-border/30", isDense ? "text-[10px]" : "text-[11px]")}>
                     <span>{dateStr}</span>
                     <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider font-medium">
-                      {doc.type === 'canvas' ? 'Lienzo' : doc.type === 'pdf' ? 'PDF' : 'Nota'}
+                      {meta.label}
                     </span>
                   </div>
                 </article>
@@ -498,10 +498,7 @@ export function MobileNotesHome({
         onClose={() => setMovingDoc(null)}
         onMove={(docId, newParentId) => {
           const target = documents.find((d) => d.id === docId);
-          if (target) {
-            onUpdateDocument?.({ ...target, parentId: newParentId });
-            updateDocument(docId, { parentId: newParentId });
-          }
+          target && (onUpdateDocument?.({ ...target, parentId: newParentId }), updateDocument(docId, { parentId: newParentId }));
         }}
       />
     </div>
