@@ -41,7 +41,7 @@ interface WorkspaceProps {
     onToggleSidebar?: () => void
     refreshDocuments?: () => void
     onCreateDocument?: (type: 'text' | 'canvas') => void
-    onOpenSettings?: () => void
+    onOpenSettings?: (tab?: string) => void
     onOpenSearch?: () => void
     onDeleteDocument?: (id: string) => void
 }

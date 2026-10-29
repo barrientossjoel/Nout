@@ -11,7 +11,7 @@ import {
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw, Folder } from "lucide-react"
+import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw, Folder, Camera, Trash2, User } from "lucide-react"
 import { cn } from "../../lib/utils/utils"
 import { useTheme } from "../theme-provider"
 import { useMediaQuery } from "../../hooks/useMediaQuery"
@@ -66,23 +66,76 @@ interface SettingsDialogProps {
     onOpenChange: (open: boolean) => void
     showResizeHandles: boolean
     onShowResizeHandlesChange: (show: boolean) => void
+    initialTab?: string
 }
 
 export function SettingsDialog({
     open,
     onOpenChange,
     showResizeHandles,
-    onShowResizeHandlesChange
+    onShowResizeHandlesChange,
+    initialTab
 }: SettingsDialogProps) {
     const { t, language, setLanguage } = useLanguage()
     const [searchQuery, setSearchQuery] = React.useState("")
-    const [activeTab, setActiveTab] = React.useState("account")
+    const [activeTab, setActiveTab] = React.useState(initialTab || "account")
 
     // UI State for mobile navigation
     const [showMobileDetail, setShowMobileDetail] = React.useState(false)
 
     const { theme, setTheme } = useTheme()
-    const { user, logout } = useAuth()
+    const { user, setUser, logout } = useAuth()
+    const avatarInputRef = React.useRef<HTMLInputElement>(null)
+
+    React.useEffect(() => {
+        if (open && initialTab) {
+            setActiveTab(initialTab)
+            setShowMobileDetail(true)
+        }
+    }, [open, initialTab])
+
+    React.useEffect(() => {
+        const handleCustomOpen = (e: Event) => {
+            const custom = e as CustomEvent<{ tab?: string }>
+            if (custom.detail?.tab) {
+                setActiveTab(custom.detail.tab)
+                setShowMobileDetail(true)
+            }
+            onOpenChange(true)
+        }
+        window.addEventListener('nout:open_settings', handleCustomOpen)
+        return () => window.removeEventListener('nout:open_settings', handleCustomOpen)
+    }, [onOpenChange])
+
+    const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = () => {
+            const img = new Image()
+            img.onload = () => {
+                const canvas = document.createElement('canvas')
+                const targetSize = 256
+                canvas.width = targetSize
+                canvas.height = targetSize
+                const ctx = canvas.getContext('2d')
+                if (ctx) {
+                    const size = Math.min(img.width, img.height)
+                    const startX = (img.width - size) / 2
+                    const startY = (img.height - size) / 2
+                    ctx.drawImage(img, startX, startY, size, size, 0, 0, targetSize, targetSize)
+                    const compressed = canvas.toDataURL('image/jpeg', 0.85)
+                    setUser(user ? { ...user, avatarUrl: compressed } : { id: 'local-user', name: 'Usuario Local', email: 'local@nout.app', avatarUrl: compressed })
+                }
+            }
+            img.src = reader.result as string
+        }
+        reader.readAsDataURL(file)
+        e.target.value = ''
+    }
+
+    const handleRemoveAvatar = () => user && setUser({ ...user, avatarUrl: undefined })
     const isMobile = useMediaQuery('(max-width: 768px)')
     const { shortcuts, setShortcut, resetShortcut, resetAll } = useKeyboardShortcuts()
 
@@ -247,29 +300,15 @@ export function SettingsDialog({
                                 <div className="space-y-[clamp(1.5rem,4vw,2.5rem)] animate-in fade-in duration-300">
                                     {/* Sección Mi Perfil / Cuenta */}
                                     <div>
+                                        <input
+                                            ref={avatarInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleAvatarUpload}
+                                        />
                                         <h3 className="text-[clamp(1.125rem,2.5vw,1.25rem)] font-medium text-foreground mb-[clamp(0.75rem,2vw,1rem)]">{t('myProfile')}</h3>
-                                        {user ? (
-                                            <div className="flex items-center justify-between p-[clamp(0.75rem,2vw,1rem)] rounded-lg border border-border bg-card gap-4">
-                                                <div className="flex flex-row items-center gap-[clamp(0.75rem,2vw,1rem)] min-w-0">
-                                                    <Avatar className="h-[clamp(2.5rem,5vw,3rem)] w-[clamp(2.5rem,5vw,3rem)] rounded-md border border-border shrink-0">
-                                                        {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
-                                                        <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{user.name?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-semibold text-[clamp(13px,1.5vw,15px)] text-foreground truncate">{user.name}</span>
-                                                        <span className="text-[clamp(11px,1.2vw,13px)] text-muted-foreground truncate">{user.email}</span>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="rounded-md shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
-                                                    onClick={logout}
-                                                >
-                                                    {t('logOut')}
-                                                </Button>
-                                            </div>
-                                        ) : showLogin ? (
+                                        {showLogin ? (
                                             <div className="rounded-lg border border-border bg-card p-4 space-y-3">
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="text-sm font-medium text-foreground">
@@ -287,25 +326,76 @@ export function SettingsDialog({
                                                 <Login embedded onSuccess={() => setShowLogin(false)} className="p-0 border-0 bg-transparent shadow-none max-w-none" />
                                             </div>
                                         ) : (
-                                            <div className="rounded-lg border border-border bg-card p-4 flex items-center justify-between gap-4">
-                                                <div>
-                                                    <h4 className="text-sm font-medium text-foreground">
-                                                        {language === 'es' ? 'Iniciar sesión para sincronizar' : 'Log in to sync'}
-                                                    </h4>
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {language === 'es' 
-                                                            ? 'Sincroniza tus notas en la nube entre tus dispositivos (opcional).' 
-                                                            : 'Sync your notes across devices (optional).'}
-                                                    </p>
+                                            <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div 
+                                                            className="relative group cursor-pointer shrink-0" 
+                                                            onClick={() => avatarInputRef.current?.click()} 
+                                                            title={language === 'es' ? 'Cambiar foto de perfil' : 'Change profile photo'}
+                                                        >
+                                                            <Avatar className="h-12 w-12 rounded-full border border-border shadow-xs">
+                                                                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user?.name || 'Avatar'} />}
+                                                                <AvatarFallback className="rounded-full bg-secondary text-foreground font-semibold">
+                                                                    {user?.name ? user.name.slice(0, 2).toUpperCase() : <User className="w-5 h-5 text-muted-foreground" />}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity text-white">
+                                                                <Camera className="w-4 h-4" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="font-semibold text-sm text-foreground truncate">
+                                                                {user?.name || (language === 'es' ? 'Perfil Local' : 'Local Profile')}
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground truncate">
+                                                                {user?.email || (language === 'es' ? 'Notas almacenadas localmente en este dispositivo' : 'Notes stored locally on this device')}
+                                                            </span>
+                                                            <div className="flex items-center gap-2 mt-1.5">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    className="h-6 text-[11px] px-2 gap-1"
+                                                                    onClick={() => avatarInputRef.current?.click()}
+                                                                >
+                                                                    <Camera className="w-3 h-3" />
+                                                                    {language === 'es' ? 'Cambiar foto' : 'Change photo'}
+                                                                </Button>
+                                                                {user?.avatarUrl && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-6 text-[11px] px-1.5 text-muted-foreground hover:text-destructive"
+                                                                        onClick={handleRemoveAvatar}
+                                                                    >
+                                                                        {language === 'es' ? 'Quitar' : 'Remove'}
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {user ? (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="rounded-md shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors self-start sm:self-center"
+                                                            onClick={logout}
+                                                        >
+                                                            {t('logOut')}
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="shrink-0 text-xs px-3 h-8 self-start sm:self-center"
+                                                            onClick={() => setShowLogin(true)}
+                                                        >
+                                                            {language === 'es' ? 'Iniciar sesión' : 'Log in'}
+                                                        </Button>
+                                                    )}
                                                 </div>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="shrink-0 text-xs px-4"
-                                                    onClick={() => setShowLogin(true)}
-                                                >
-                                                    {language === 'es' ? 'Iniciar sesión' : 'Log in'}
-                                                </Button>
                                             </div>
                                         )}
                                     </div>

@@ -16,7 +16,7 @@ interface DashboardProps {
     showTabs?: boolean
     onToggleTabs?: () => void
     onCreateDocument?: (type: 'text' | 'canvas') => void
-    onOpenSettings?: () => void
+    onOpenSettings?: (tab?: string) => void
     onOpenSearch?: () => void
     onUpdateDocument?: (doc: Document) => void
     onDeleteDocument?: (id: string) => void

@@ -71,7 +71,21 @@ function NotesAppInner() {
   const setShowResizeHandles = (show: boolean) => saveWorkspaceState({ showResizeHandles: show })
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<string>('account')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+
+  useEffect(() => {
+    const handleOpenSettings = (e: Event) => {
+      const custom = e as CustomEvent<{ tab?: string }>
+      if (custom.detail?.tab) {
+        setSettingsTab(custom.detail.tab)
+      }
+      setIsSettingsOpen(true)
+      if (isMobile) setShowSidebar(false)
+    }
+    window.addEventListener('nout:open_settings', handleOpenSettings)
+    return () => window.removeEventListener('nout:open_settings', handleOpenSettings)
+  }, [isMobile])
 
   // Global search shortcut (configurable)
   const { shortcuts } = useKeyboardShortcuts()
@@ -378,6 +392,11 @@ function NotesAppInner() {
                   showSidebar={showSidebar}
                   onToggleSidebar={() => setShowSidebar(prev => !prev)}
                   refreshDocuments={refresh}
+                  onOpenSettings={(tab?: string) => {
+                    if (tab) setSettingsTab(tab)
+                    setIsSettingsOpen(true)
+                    if (isMobile) setShowSidebar(false)
+                  }}
                 />
 
                 {/* Mobile Navigation Bar & FAB: only rendered on root dashboard/views, hidden inside documents */}
@@ -437,6 +456,7 @@ function NotesAppInner() {
         onOpenChange={setIsSettingsOpen}
         showResizeHandles={showResizeHandles}
         onShowResizeHandlesChange={setShowResizeHandles}
+        initialTab={settingsTab}
       />
     </ErrorBoundary>
   )
