@@ -238,13 +238,19 @@ export function MobileNav({
         aria-label="Mobile Navigation"
         className={cn(
           POSITION_CONTAINER_CLASSES[activePosition],
-          "flex items-center justify-center pointer-events-auto transition-all duration-200",
-          isVertical ? "flex-col" : "flex-row",
-          activeNavStyle === 'pill'
-            ? "w-fit max-w-[94vw] p-1.5 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] gap-1.5"
-            : "w-fit bg-transparent border-0 shadow-none backdrop-blur-none p-0 gap-2"
+          "bg-transparent border-0 shadow-none backdrop-blur-none p-0 flex items-center justify-center pointer-events-none transition-all duration-200",
+          isVertical ? "flex-col" : "flex-row"
         )}
       >
+        <div
+          className={cn(
+            "flex items-center justify-center pointer-events-auto transition-all duration-200",
+            isVertical ? "flex-col" : "flex-row",
+            activeNavStyle === 'pill'
+              ? "w-fit max-w-[94vw] p-1.5 rounded-full bg-card/85 dark:bg-card/75 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] gap-1.5"
+              : "w-fit bg-transparent border-0 shadow-none backdrop-blur-none p-0 gap-2"
+          )}
+        >
         {activeButtons.map((btnId) => {
           const item = NAV_ITEMS_MAP[btnId]
           const Icon = item.icon
@@ -392,6 +398,7 @@ export function MobileNav({
         >
           <CollapseIcon className="w-3.5 h-3.5" />
         </button>
+        </div>
       </nav>
 
       {/* Material Design 3 Floating Action Button (FAB) */}
@@ -533,6 +540,19 @@ export function MobileNav({
                             className="min-h-[44px] cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation()
+                              handleAction(() => {
+                                setIsMobileModalOpen(false)
+                                onCreateDocument('text')
+                              }, 'selection')
+                            }}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Nueva pestaña
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="min-h-[44px] cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation()
                               handleAction(() => onPinTab(tabId, tabId !== previewTabId), 'selection')
                             }}
                           >
@@ -556,6 +576,26 @@ export function MobileNav({
                   </div>
                 )
               })}
+
+              {/* Nueva pestaña card */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  handleAction(() => {
+                    setIsMobileModalOpen(false)
+                    onCreateDocument('text')
+                  }, 'selection')
+                }}
+                className="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/80 hover:border-primary/50 text-muted-foreground hover:text-primary transition-all aspect-[4/5] bg-background/50 hover:bg-primary/5 select-none gap-2.5 p-3.5 group cursor-pointer"
+              >
+                <div className="p-3 rounded-2xl bg-secondary/80 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                  <Plus className="h-6 w-6 stroke-[2]" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">
+                  Nueva pestaña
+                </span>
+              </div>
             </div>
           </div>
         </div>

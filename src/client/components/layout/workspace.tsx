@@ -483,6 +483,7 @@ export function Workspace({
                             onPinTab={(id: string) => onUpdateLayout(pinTab(layout, node.id, id, true))}
                             onCloseTab={(id) => handleCloseTab(node.id, id)}
                             onMoveTab={handleMoveTab}
+                            onNewTab={() => onCreateDocument?.('text')}
                         />
                     )}
 

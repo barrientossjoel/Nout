@@ -422,13 +422,11 @@ function NotesAppInner() {
           </div>
           {(() => {
             const isInsideDoc = isMobile && documents.some(d => d.id === currentView)
-            const NAV_PADDING_MAP: Record<NavPosition, string> = {
-              bottom: "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]",
-              top: "pt-[calc(4rem+env(safe-area-inset-top,0px))]",
+            const NAV_PADDING_MAP: Partial<Record<NavPosition, string>> = {
               left: "pl-16",
               right: "pr-16",
             }
-            const mobilePadding = isMobile && !isInsideDoc && !navConfig.isCollapsed ? NAV_PADDING_MAP[navConfig.position] : ""
+            const mobilePadding = isMobile && !isInsideDoc && !navConfig.isCollapsed ? (NAV_PADDING_MAP[navConfig.position] || "") : ""
 
             return (
               <main

@@ -1,6 +1,6 @@
 [package]
 name = "nout"
-version = "1.0.8"
+version = "1.0.14"
 description = "Nout - Modern Notes and Canvas Native App"
 authors = ["Joe"]
 license = "MIT"

@@ -17,9 +17,10 @@ interface TabBarProps {
     onPinTab?: (id: string) => void
     onCloseTab: (id: string) => void
     onMoveTab: (tabId: string, sourcePaneId: string, targetPaneId: string, index?: number) => void
+    onNewTab?: () => void
 }
 
-export function TabBar({ paneId, tabs, activeTabId, previewTabId, documents, onSelectTab, onPinTab, onCloseTab, onMoveTab }: TabBarProps) {
+export function TabBar({ paneId, tabs, activeTabId, previewTabId, documents, onSelectTab, onPinTab, onCloseTab, onMoveTab, onNewTab }: TabBarProps) {
     const handleDragStart = (e: React.DragEvent, tabId: string) => {
         e.dataTransfer.setData('tabId', tabId)
         e.dataTransfer.setData('sourcePaneId', paneId)
@@ -123,6 +124,18 @@ export function TabBar({ paneId, tabs, activeTabId, previewTabId, documents, onS
                     </div>
                 )
             })}
+
+            {onNewTab && (
+                <button
+                    type="button"
+                    aria-label="Nueva pestaña"
+                    title="Nueva pestaña"
+                    onClick={onNewTab}
+                    className="flex items-center justify-center h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-md transition-colors ml-1 my-auto shrink-0 cursor-pointer"
+                >
+                    <Plus className="h-3.5 w-3.5" />
+                </button>
+            )}
         </div>
     )
 }
