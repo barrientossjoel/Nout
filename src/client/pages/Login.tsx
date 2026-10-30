@@ -5,7 +5,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import { getApiUrl, initiateGoogleOAuth, setAuthToken } from '../services/api';
-import { isTauri } from '../../core/utils/platform';
 
 const translations = {
     en: {

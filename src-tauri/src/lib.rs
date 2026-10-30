@@ -33,13 +33,14 @@ pub fn get_jvm() -> Option<&'static jni::JavaVM> {
 }
 
 /// Configures and starts the Tauri application runtime.
-///
-/// # Errors
-///
-/// Returns an error if directory creation, database initialization, plugin registration,
-/// or runtime launch fails.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+pub fn run() {
+    if let Err(err) = run_app() {
+        log::error!("Error fatal iniciando la aplicación Tauri: {err}");
+    }
+}
+
+fn run_app() -> Result<(), Box<dyn std::error::Error>> {
     tauri::Builder::default()
         .setup(|app| {
             if cfg!(debug_assertions) {

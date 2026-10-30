@@ -156,7 +156,6 @@ export function DocumentView({
                 updatedAt: new Date() // Optimistic update
             })
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lastSaved])
     // Sync state when document prop changes (e.g. user opens a different document).
     // content is set to null first so useAutoSave does not fire during the load window.

@@ -20,7 +20,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     this.state = { hasError: false, lastResetKey: props.resetKey }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static getDerivedStateFromError(_: Error): Partial<ErrorBoundaryState> {
     return { hasError: true }
   }

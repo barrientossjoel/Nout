@@ -170,7 +170,6 @@ export function GraphView({ documents, onNavigate, showSidebar, onToggleSidebar 
         () => computeGraphData(documents, settings),
         // Only structural settings (filters/groups) should trigger a graph rebuild.
         // Changing forces or display values must NOT restart the simulation.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [docsKey, settings.filters, settings.groups]
     )
 

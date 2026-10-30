@@ -255,7 +255,7 @@ export const PdfRenderer = forwardRef<any, PdfRendererProps>(({ documentId, url,
             // Reset so StrictMode's second invocation (or genuine re-mount) can retry
             scrollRestored.current = false
         }
-    }, [loading, pdf]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [loading, pdf])
 
     // Detect text selection
     const handleMouseUp = useCallback(() => {
