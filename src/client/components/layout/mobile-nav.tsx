@@ -58,10 +58,10 @@ const POSITION_LABELS: Record<NavPosition, string> = {
 }
 
 const POSITION_CONTAINER_CLASSES: Record<NavPosition, string> = {
-  bottom: "fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-[1000] flex-row",
-  top: "fixed top-[calc(1rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-[1000] flex-row",
-  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] flex-col",
-  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] flex-col",
+  bottom: "fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-[1000] flex flex-row",
+  top: "fixed top-[calc(1rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-[1000] flex flex-row",
+  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] flex flex-col",
+  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] flex flex-col",
 }
 
 const EXPAND_TRIGGER_CLASSES: Record<NavPosition, string> = {
@@ -238,7 +238,8 @@ export function MobileNav({
         aria-label="Mobile Navigation"
         className={cn(
           POSITION_CONTAINER_CLASSES[activePosition],
-          "items-center justify-center pointer-events-auto transition-all duration-200",
+          "flex items-center justify-center pointer-events-auto transition-all duration-200",
+          isVertical ? "flex-col" : "flex-row",
           activeNavStyle === 'pill'
             ? "w-fit max-w-[94vw] p-1.5 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] gap-1.5"
             : "w-fit bg-transparent border-0 shadow-none backdrop-blur-none p-0 gap-2"
@@ -256,7 +257,7 @@ export function MobileNav({
               aria-label={item.label}
               onClick={() => handleAction(buttonActionMap[btnId], btnId === 'tabs' ? 'light' : 'selection')}
               className={cn(
-                "group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-90 flex items-center justify-center relative",
+                "group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-90 flex items-center justify-center relative shrink-0",
                 activeNavStyle === 'pill'
                   ? cn(
                       "h-10 w-10 rounded-full transition-all duration-200",
@@ -287,7 +288,7 @@ export function MobileNav({
               type="button"
               aria-label="Opciones de barra móvil"
               className={cn(
-                "rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
+                "rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90 transition-all flex items-center justify-center shrink-0",
                 activeNavStyle === 'pill'
                   ? "h-9 w-9 hover:bg-secondary/60"
                   : "h-11 w-11 bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md"
@@ -383,7 +384,7 @@ export function MobileNav({
           aria-label="Ocultar barra móvil"
           title="Ocultar barra"
           className={cn(
-            "rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
+            "rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90 transition-all flex items-center justify-center shrink-0",
             activeNavStyle === 'pill'
               ? "h-8 w-8 hover:bg-secondary/60"
               : "h-11 w-11 bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md"
