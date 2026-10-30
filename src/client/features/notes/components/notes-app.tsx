@@ -24,7 +24,7 @@ import { CanvasView } from '../../canvas/canvas-view'
 import { Button } from '../../../components/ui/button'
 import { PanelLeft } from 'lucide-react'
 import { useWorkspaces } from '../../../hooks/useWorkspaces'
-import { MobileNav, type NavPosition } from '../../../components/layout/mobile-nav'
+import { MobileNav, type NavPosition, type NavStyle } from '../../../components/layout/mobile-nav'
 import { KeyboardShortcutsProvider, useKeyboardShortcuts, matchesShortcut } from '../../../context/KeyboardShortcutsContext'
 
 
@@ -76,9 +76,10 @@ function NotesAppInner() {
   const [settingsTab, setSettingsTab] = useState<string>('account')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
 
-  const [navConfig, setNavConfig] = useState<{ position: NavPosition; isCollapsed: boolean }>(() => ({
+  const [navConfig, setNavConfig] = useState<{ position: NavPosition; isCollapsed: boolean; navStyle: NavStyle }>(() => ({
     position: (typeof window !== 'undefined' && (localStorage.getItem('nout_mobile_nav_pos') as NavPosition)) || 'bottom',
     isCollapsed: typeof window !== 'undefined' && localStorage.getItem('nout_mobile_nav_collapsed') === 'true',
+    navStyle: (typeof window !== 'undefined' && (localStorage.getItem('nout_mobile_nav_style') as NavStyle)) || 'pill',
   }))
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
@@ -91,8 +92,14 @@ function NotesAppInner() {
       isMobile && setShowSidebar(false)
     }
     const handleNavChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ position: NavPosition; isCollapsed: boolean }>).detail
-      detail && setNavConfig(detail)
+      const detail = (e as CustomEvent<{ position?: NavPosition; isCollapsed?: boolean; navStyle?: NavStyle }>).detail
+      if (detail) {
+        setNavConfig((prev) => ({
+          position: detail.position ?? prev.position,
+          isCollapsed: detail.isCollapsed ?? prev.isCollapsed,
+          navStyle: detail.navStyle ?? prev.navStyle,
+        }))
+      }
     }
     window.addEventListener('nout:open_settings', handleOpenSettings)
     window.addEventListener('nout:mobile_nav_change', handleNavChange)
@@ -101,6 +108,22 @@ function NotesAppInner() {
       window.removeEventListener('nout:mobile_nav_change', handleNavChange)
     }
   }, [isMobile])
+
+  // Native Android back button & edge swipe gesture via popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const isDoc = currentView !== 'dashboard' && currentView !== 'calendar' && currentView !== 'trash' && currentView !== 'graph' && currentView !== 'ai'
+      if (isDoc) {
+        setCurrentView('dashboard')
+      } else if (isSettingsOpen) {
+        setIsSettingsOpen(false)
+      } else if (isSearchOpen) {
+        setIsSearchOpen(false)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [currentView, isSettingsOpen, isSearchOpen])
 
   // Global search shortcut (configurable)
   const { shortcuts } = useKeyboardShortcuts()
@@ -286,13 +309,19 @@ function NotesAppInner() {
   const handleNavigate = (view: SidebarView, inPane?: boolean, isPreview: boolean = true) => {
     setCurrentView(view)
 
-    if (inPane && view !== "dashboard" && view !== "calendar" && view !== "trash" && view !== "graph" && view !== "ai") {
+    const isDoc = view !== "dashboard" && view !== "calendar" && view !== "trash" && view !== "graph" && view !== "ai"
+    if (isDoc && typeof window !== 'undefined') {
+      try {
+        window.history.pushState({ view }, '', `#doc-${view}`)
+      } catch {}
+    }
+
+    if (inPane && isDoc) {
       setLayout(prev => splitNode(prev, activePaneId, 'horizontal', view))
     } else {
       updateLayoutWithDoc(view, isPreview)
     }
 
-    // Update the layout with the view (could be docId, 'dashboard', 'calendar', or 'trash')
     if (isMobile) {
       setShowSidebar(false)
     }
@@ -447,6 +476,10 @@ function NotesAppInner() {
                       currentView={currentView}
                       documents={documents}
                       tabs={activeTabs}
+                      position={navConfig.position}
+                      isCollapsed={navConfig.isCollapsed}
+                      navStyle={navConfig.navStyle}
+                      onNavConfigChange={setNavConfig}
                       onSelectTab={(id) => handleNavigate(id)}
                       onCloseTab={(id) => activePane?.id && setLayout(closeTab(layout, activePane.id, id))}
                       onNavigate={(view) => {
@@ -462,7 +495,6 @@ function NotesAppInner() {
                       }}
                       onPinTab={(id, pinned) => activePane?.id && setLayout(pinTab(layout, activePane.id, id, pinned))}
                       previewTabId={activePane?.type === 'pane' ? activePane.previewTabId : null}
-
                     />
                   )
                 })()}

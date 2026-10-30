@@ -26,6 +26,7 @@ type FilterCategory = 'all' | 'favorites' | 'text' | 'canvas' | 'pdf';
 export interface MobileGridConfig {
   mode: LayoutMode;
   columns: number;
+  rows: number;
 }
 
 const FILTER_PREDICATES: Record<FilterCategory, (d: Document) => boolean> = {
@@ -57,6 +58,32 @@ const SLOT_CONFIG: Record<HeaderSlot, { label: string; icon: React.ComponentType
   settings: { label: 'Ajustes', icon: Settings },
   sidebar: { label: 'Carpetas (Menú)', icon: Menu },
 };
+
+function formatCardSnippet(doc: Document, maxLength: number): string {
+  if (doc.type === 'canvas') return 'Lienzo visual';
+  if (typeof doc.content !== 'string' || !doc.content.trim()) {
+    return (doc.type && DOC_TYPE_META[doc.type]?.snippetFallback) || 'Sin contenido';
+  }
+  const raw = doc.content.trim();
+  if (raw.startsWith('{') || raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.nodes && Array.isArray(parsed.nodes)) {
+        return `${parsed.nodes.length} elemento${parsed.nodes.length !== 1 ? 's' : ''} en el lienzo`;
+      }
+      return 'Contenido visual';
+    } catch {}
+  }
+  return raw
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\\([^\\])/g, '$1')
+    .replace(/-\s*\[[ xX]\]\s*/g, '• ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#*`_~>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength) || 'Sin contenido';
+}
 
 interface MobileNotesHomeProps {
   documents: Document[];
@@ -92,14 +119,27 @@ export function MobileNotesHome({
   const [gridConfig, setGridConfig] = useState<MobileGridConfig>(() => {
     try {
       const saved = typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_grid') : null;
-      return saved ? JSON.parse(saved) : { mode: 'masonry', columns: 2 };
+      return saved ? JSON.parse(saved) : { mode: 'masonry', columns: 2, rows: 3 };
     } catch {
-      return { mode: 'masonry', columns: 2 };
+      return { mode: 'masonry', columns: 2, rows: 3 };
     }
   });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef<number>(0);
+  const isScrollingRef = useRef<boolean>(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    isScrollingRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (Math.abs(e.touches[0].clientY - touchStartY.current) > 6) {
+      isScrollingRef.current = true;
+    }
+  };
 
   const openSettings = (tab = 'account') => {
     triggerHaptic('selection');
@@ -131,6 +171,7 @@ export function MobileNotesHome({
   };
 
   const handleOpenNote = (id: string) => {
+    if (isScrollingRef.current) return;
     triggerHaptic('selection');
     setExpandingId(id);
     setTimeout(() => {
@@ -169,7 +210,7 @@ export function MobileNotesHome({
     <button
       type="button"
       aria-label="Perfil y opciones"
-      className="h-9 w-9 rounded-full border border-border/70 hover:border-primary/50 transition-transform active:scale-95 flex items-center justify-center overflow-hidden shrink-0 bg-secondary/70 shadow-xs focus-visible:outline-none"
+      className="h-9 w-9 rounded-full border border-black/10 dark:border-white/15 hover:border-primary/50 transition-transform active:scale-95 flex items-center justify-center overflow-hidden shrink-0 bg-card/90 dark:bg-card/75 shadow-sm focus-visible:outline-none"
     >
       {user?.avatarUrl ? (
         <img src={user.avatarUrl} alt={user.name || 'Perfil'} className="h-full w-full object-cover" />
@@ -183,31 +224,34 @@ export function MobileNotesHome({
     <button
       type="button"
       aria-label={SLOT_CONFIG[slot].label}
-      className="p-2 rounded-full hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+      className="h-9 w-9 rounded-full bg-card/90 dark:bg-card/75 border border-black/10 dark:border-white/15 shadow-sm hover:bg-card active:scale-95 transition-all flex items-center justify-center text-muted-foreground hover:text-foreground"
     >
-      {React.createElement(SLOT_CONFIG[slot].icon, { className: 'w-5 h-5' })}
+      {React.createElement(SLOT_CONFIG[slot].icon, { className: 'w-4 h-4' })}
     </button>
   );
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full bg-background text-foreground overflow-y-auto pb-28 pt-1 select-none">
-      {/* Header Bar */}
-      <header className="px-4 py-2 sticky top-0 bg-background/95 backdrop-blur-md z-20 border-b border-border/40 shadow-xs">
+    <div
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      className="flex flex-col h-full bg-background text-foreground overflow-y-auto pb-28 pt-1 select-none"
+    >
+      {/* Header independiente: transparente, elementos flotantes separados */}
+      <header className="px-4 py-2 sticky top-0 bg-transparent z-20 pointer-events-none">
         <div className="flex items-center justify-between gap-2">
-          {/* Logo nOut (Home) */}
+          {/* Logo nOut real (Home) */}
           <button
             type="button"
             onClick={handleHomeClick}
-            className="flex items-center gap-1 focus:outline-none active:scale-95 transition-transform shrink-0"
+            className="p-1 rounded-2xl bg-card/90 dark:bg-card/75 border border-black/10 dark:border-white/15 shadow-sm hover:border-primary/50 transition-all active:scale-95 shrink-0 pointer-events-auto"
             aria-label="Ir a Inicio"
           >
-            <span className="font-extrabold tracking-tight text-xl select-none">
-              n<span className="text-primary">Out</span>
-            </span>
+            <img src="/icon_cropped.png" alt="nOut" className="w-8 h-8 rounded-xl object-contain drop-shadow-xs" />
           </button>
 
-          {/* Buscador */}
-          <div className="flex-1 relative flex items-center min-w-0 max-w-sm mx-1">
+          {/* Buscador cápsula independiente */}
+          <div className="flex-1 relative flex items-center min-w-0 max-w-sm mx-1 pointer-events-auto">
             <Search className="absolute left-3 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               ref={searchInputRef}
@@ -216,7 +260,7 @@ export function MobileNotesHome({
               onFocus={() => { setIsSearching(true); triggerHaptic('light'); }}
               onChange={(e) => { setSearchQuery(e.target.value); setIsSearching(true); }}
               placeholder="Buscar notas..."
-              className="w-full h-9 pl-9 pr-8 rounded-full bg-secondary/80 border border-border/50 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:bg-background transition-all"
+              className="w-full h-9 pl-9 pr-8 rounded-full bg-card/90 dark:bg-card/75 border border-black/10 dark:border-white/15 shadow-sm text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
             />
             {searchQuery && (
               <button
@@ -229,24 +273,24 @@ export function MobileNotesHome({
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 pointer-events-auto">
             {/* Grid & Masonry View Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="p-2 rounded-full hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                  className="h-9 w-9 rounded-full bg-card/90 dark:bg-card/75 border border-black/10 dark:border-white/15 shadow-sm hover:bg-card active:scale-95 transition-all flex items-center justify-center text-muted-foreground hover:text-foreground"
                   aria-label="Configurar grilla"
                   title="Configurar grilla"
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60 p-2.5 rounded-2xl shadow-xl border-border/80">
+              <DropdownMenuContent align="end" className="w-64 p-3 rounded-2xl shadow-xl border-border/80">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className="text-xs font-semibold text-foreground">Distribución</span>
                   <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground font-semibold">
-                    {gridConfig.columns}x{gridConfig.columns} {gridConfig.mode === 'masonry' ? 'Pinterest' : 'Grilla'}
+                    {gridConfig.columns} cols × {gridConfig.rows} filas ({gridConfig.mode === 'masonry' ? 'Pinterest' : 'Grilla'})
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-1 p-0.5 bg-secondary/60 rounded-xl mb-2.5">
@@ -271,8 +315,10 @@ export function MobileNotesHome({
                     Grilla
                   </button>
                 </div>
-                <div className="px-1">
-                  <span className="text-[11px] text-muted-foreground block mb-1.5">Columnas (1 a 7)</span>
+
+                {/* Columnas 1 a 7 */}
+                <div className="px-1 mb-2">
+                  <span className="text-[11px] text-muted-foreground block mb-1">Columnas (1 a 7)</span>
                   <div className="grid grid-cols-7 gap-1">
                     {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                       <button
@@ -282,6 +328,28 @@ export function MobileNotesHome({
                         className={cn(
                           "h-7 rounded-lg text-xs font-semibold transition-all active:scale-95 flex items-center justify-center",
                           gridConfig.columns === num 
+                            ? "bg-primary text-primary-foreground shadow-xs" 
+                            : "bg-secondary/70 text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Filas 1 a 7 */}
+                <div className="px-1">
+                  <span className="text-[11px] text-muted-foreground block mb-1">Filas visibles (1 a 7)</span>
+                  <div className="grid grid-cols-7 gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => handleUpdateGrid({ rows: num })}
+                        className={cn(
+                          "h-7 rounded-lg text-xs font-semibold transition-all active:scale-95 flex items-center justify-center",
+                          gridConfig.rows === num 
                             ? "bg-primary text-primary-foreground shadow-xs" 
                             : "bg-secondary/70 text-muted-foreground hover:text-foreground"
                         )}
@@ -343,9 +411,9 @@ export function MobileNotesHome({
           </div>
         </div>
 
-        {/* Filtros dinámicos (sin scroll horizontal, wrap fluido) */}
+        {/* Filtros dinámicos con fondo flotante propio */}
         {(isSearching || q) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 pb-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 pb-0.5 pointer-events-auto animate-in fade-in slide-in-from-top-1 duration-200">
             {FILTER_CHIPS.map((chip) => {
               const active = filter === chip.id;
               const Icon = chip.icon;
@@ -355,8 +423,8 @@ export function MobileNotesHome({
                   type="button"
                   onClick={() => { triggerHaptic('selection'); setFilter(chip.id); }}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 border',
-                    active ? 'bg-primary text-primary-foreground border-primary shadow-xs' : 'bg-secondary/70 text-muted-foreground border-border/50 hover:bg-secondary hover:text-foreground'
+                    'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all active:scale-95 border shadow-xs',
+                    active ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/90 dark:bg-card/75 text-muted-foreground border-black/10 dark:border-white/15 hover:text-foreground'
                   )}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -367,7 +435,7 @@ export function MobileNotesHome({
             <button
               type="button"
               onClick={() => { triggerHaptic('light'); setIsSearching(false); setSearchQuery(''); setFilter('all'); }}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground bg-secondary/40 border border-border/40 ml-auto"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-muted-foreground hover:text-foreground bg-card/90 dark:bg-card/75 border border-black/10 dark:border-white/15 shadow-xs ml-auto"
             >
               <X className="w-3 h-3" />
               <span>Listo</span>
@@ -376,8 +444,8 @@ export function MobileNotesHome({
         )}
       </header>
 
-      {/* Lista de Notas (Masonry Pinterest vs Grilla Matriz) */}
-      <main className="px-3.5 mt-3 flex-1">
+      {/* Lista de Notas con bordes contrastados y formateo limpio */}
+      <main className="px-3.5 mt-2 flex-1">
         {filteredDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground px-6 animate-in fade-in">
             <div className="w-16 h-16 rounded-3xl bg-secondary/70 flex items-center justify-center text-muted-foreground/60 mb-3">
@@ -397,6 +465,7 @@ export function MobileNotesHome({
                 : {
                     display: 'grid',
                     gridTemplateColumns: `repeat(${gridConfig.columns}, minmax(0, 1fr))`,
+                    gridAutoRows: gridConfig.rows > 1 ? `calc((82vh - 100px) / ${gridConfig.rows})` : 'auto',
                     gap: '0.625rem',
                   }
             }
@@ -406,11 +475,7 @@ export function MobileNotesHome({
               const Icon = meta.icon;
               const isDense = gridConfig.columns >= 3;
               const isVeryDense = gridConfig.columns >= 5;
-
-              const snippet = typeof doc.content === 'string'
-                ? doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim().slice(0, isDense ? 45 : 120) || meta.snippetFallback
-                : meta.snippetFallback;
-
+              const snippet = formatCardSnippet(doc, isDense ? 45 : 120);
               const dateStr = doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
               const isExpanding = expandingId === doc.id;
 
@@ -419,7 +484,7 @@ export function MobileNotesHome({
                   key={doc.id}
                   onClick={() => handleOpenNote(doc.id)}
                   className={cn(
-                    "rounded-2xl border border-border/70 bg-card hover:bg-card/90 cursor-pointer flex flex-col justify-between transition-all duration-200 shadow-xs",
+                    "rounded-2xl border border-black/10 dark:border-white/20 hover:dark:border-white/40 bg-card/90 dark:bg-card/70 cursor-pointer flex flex-col justify-between transition-all duration-200 shadow-xs",
                     gridConfig.mode === 'masonry' && "break-inside-avoid mb-2.5",
                     isDense ? "p-2.5" : "p-3.5",
                     isExpanding && "scale-[1.04] opacity-90 shadow-2xl z-30 ring-2 ring-primary/40 duration-150"
@@ -439,8 +504,12 @@ export function MobileNotesHome({
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); }}
-                              className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isScrollingRef.current) return;
+                                triggerHaptic('light');
+                              }}
+                              className="p-1 rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
                             </button>
@@ -478,9 +547,9 @@ export function MobileNotesHome({
                     </p>
                   )}
 
-                  <div className={cn("flex items-center justify-between text-muted-foreground/70 mt-2.5 pt-1.5 border-t border-border/30", isDense ? "text-[10px]" : "text-[11px]")}>
+                  <div className={cn("flex items-center justify-between text-muted-foreground/80 mt-2.5 pt-1.5 border-t border-black/5 dark:border-white/10", isDense ? "text-[10px]" : "text-[11px]")}>
                     <span>{dateStr}</span>
-                    <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider font-medium">
+                    <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider font-medium">
                       {meta.label}
                     </span>
                   </div>

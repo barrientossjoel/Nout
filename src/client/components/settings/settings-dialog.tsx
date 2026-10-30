@@ -116,6 +116,9 @@ export function SettingsDialog({
     const [navCollapsed, setNavCollapsed] = React.useState<boolean>(() =>
       typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_nav_collapsed') === 'true' : false
     )
+    const [navStyle, setNavStyle] = React.useState<string>(() =>
+      typeof window !== 'undefined' ? localStorage.getItem('nout_mobile_nav_style') || 'pill' : 'pill'
+    )
     const [importStatus, setImportStatus] = React.useState<string | null>(null)
 
     const handleFontChange = (fontId: string) => {
@@ -142,13 +145,19 @@ export function SettingsDialog({
     const handleMobileNavPosChange = (pos: string) => {
       setNavPos(pos)
       localStorage.setItem('nout_mobile_nav_pos', pos)
-      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: pos, isCollapsed: navCollapsed } }))
+      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: pos, isCollapsed: navCollapsed, navStyle } }))
     }
 
     const handleMobileNavCollapseChange = (collapsed: boolean) => {
       setNavCollapsed(collapsed)
       localStorage.setItem('nout_mobile_nav_collapsed', String(collapsed))
-      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: navPos, isCollapsed: collapsed } }))
+      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: navPos, isCollapsed: collapsed, navStyle } }))
+    }
+
+    const handleMobileNavStyleChange = (style: string) => {
+      setNavStyle(style)
+      localStorage.setItem('nout_mobile_nav_style', style)
+      window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: navPos, isCollapsed: navCollapsed, navStyle: style } }))
     }
 
     React.useEffect(() => {
@@ -640,6 +649,24 @@ export function SettingsDialog({
                                                     </span>
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                                    <div className="flex items-center gap-0.5 bg-muted/50 border border-border p-0.5 rounded-md">
+                                                        <Button
+                                                            variant={navStyle === 'pill' ? "secondary" : "ghost"}
+                                                            size="sm"
+                                                            className="h-6 px-1.5 text-[11px]"
+                                                            onClick={() => handleMobileNavStyleChange('pill')}
+                                                        >
+                                                            Pill
+                                                        </Button>
+                                                        <Button
+                                                            variant={navStyle === 'detached' ? "secondary" : "ghost"}
+                                                            size="sm"
+                                                            className="h-6 px-1.5 text-[11px]"
+                                                            onClick={() => handleMobileNavStyleChange('detached')}
+                                                        >
+                                                            Sueltos
+                                                        </Button>
+                                                    </div>
                                                     <div className="flex items-center gap-0.5 bg-muted/50 border border-border p-0.5 rounded-md">
                                                         {[
                                                             { id: 'bottom', label: 'Abajo' },

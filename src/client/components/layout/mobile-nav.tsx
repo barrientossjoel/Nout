@@ -1,4 +1,6 @@
-import React, { useState } from 'react'
+'use client'
+
+import React, { useState, useEffect } from 'react'
 import {
   Plus, Search, Calendar, Settings, Copy, X, FileText, Frame,
   Trash2, MoreVertical, Bot, ChevronDown, ChevronUp, ChevronLeft,
@@ -14,12 +16,16 @@ import { triggerHaptic } from "../../lib/utils/haptics"
 import type { Document } from '../../../core/types/notes'
 
 export type NavPosition = 'bottom' | 'top' | 'left' | 'right'
+export type NavStyle = 'pill' | 'detached'
 export type NavItemId = 'dashboard' | 'search' | 'create' | 'tabs' | 'calendar' | 'settings'
 
 interface MobileNavProps {
   currentView: string
   documents: Document[]
   tabs: string[]
+  position?: NavPosition
+  isCollapsed?: boolean
+  navStyle?: NavStyle
   onSelectTab: (id: string) => void
   onCloseTab: (id: string) => void
   onNavigate: (view: string) => void
@@ -27,6 +33,7 @@ interface MobileNavProps {
   onCreateDocument: (type: 'text' | 'canvas') => void
   onOpenSettings: () => void
   onPinTab: (id: string, pinned: boolean) => void
+  onNavConfigChange?: (config: { position: NavPosition; isCollapsed: boolean; navStyle: NavStyle }) => void
   previewTabId?: string | null
 }
 
@@ -51,17 +58,17 @@ const POSITION_LABELS: Record<NavPosition, string> = {
 }
 
 const POSITION_CONTAINER_CLASSES: Record<NavPosition, string> = {
-  bottom: "fixed bottom-0 left-0 right-0 z-[1000] bg-background/95 backdrop-blur-lg border-t border-border/80 flex-row h-[calc(4.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-1 shadow-[0_-4px_24px_rgba(0,0,0,0.06)]",
-  top: "fixed top-0 left-0 right-0 z-[1000] bg-background/95 backdrop-blur-lg border-b border-border/80 flex-row h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] px-1 shadow-[0_4px_24px_rgba(0,0,0,0.06)]",
-  left: "fixed top-0 bottom-0 left-0 z-[1000] bg-background/95 backdrop-blur-lg border-r border-border/80 flex-col w-16 py-4 px-1 shadow-[4px_0_24px_rgba(0,0,0,0.06)]",
-  right: "fixed top-0 bottom-0 right-0 z-[1000] bg-background/95 backdrop-blur-lg border-l border-border/80 flex-col w-16 py-4 px-1 shadow-[-4px_0_24px_rgba(0,0,0,0.06)]",
+  bottom: "fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-[1000] flex-row",
+  top: "fixed top-[calc(1rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-[1000] flex-row",
+  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] flex-col",
+  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] flex-col",
 }
 
 const EXPAND_TRIGGER_CLASSES: Record<NavPosition, string> = {
-  bottom: "fixed bottom-2 left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3 py-1 shadow-lg bg-card/95 border border-border/80 backdrop-blur-md flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground",
-  top: "fixed top-[calc(0.5rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3 py-1 shadow-lg bg-card/95 border border-border/80 backdrop-blur-md flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground",
-  left: "fixed top-1/2 -translate-y-1/2 left-2 z-[1000] rounded-full p-2 shadow-lg bg-card/95 border border-border/80 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
-  right: "fixed top-1/2 -translate-y-1/2 right-2 z-[1000] rounded-full p-2 shadow-lg bg-card/95 border border-border/80 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
+  bottom: "fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3.5 py-1.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground",
+  top: "fixed top-3 left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3.5 py-1.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground",
+  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
+  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
 }
 
 const CHEVRON_MAP: Record<NavPosition, { collapse: React.ComponentType<{ className?: string }>; expand: React.ComponentType<{ className?: string }> }> = {
@@ -88,24 +95,36 @@ export function MobileNav({
   currentView,
   documents,
   tabs,
+  position: propPosition,
+  isCollapsed: propIsCollapsed,
+  navStyle: propNavStyle,
   onSelectTab,
   onCloseTab,
   onNavigate,
   onCreateDocument,
   onOpenSettings,
   onPinTab,
+  onNavConfigChange,
   previewTabId,
 }: MobileNavProps) {
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false)
 
   const [position, setPosition] = useState<NavPosition>(() => {
+    if (propPosition) return propPosition
     const saved = typeof window !== 'undefined' ? (localStorage.getItem('nout_mobile_nav_pos') as NavPosition) : null
     return saved && saved in POSITION_CONTAINER_CLASSES ? saved : 'bottom'
   })
 
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() =>
-    typeof window !== 'undefined' && localStorage.getItem('nout_mobile_nav_collapsed') === 'true'
-  )
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (propIsCollapsed !== undefined) return propIsCollapsed
+    return typeof window !== 'undefined' && localStorage.getItem('nout_mobile_nav_collapsed') === 'true'
+  })
+
+  const [navStyle, setNavStyle] = useState<NavStyle>(() => {
+    if (propNavStyle) return propNavStyle
+    const saved = typeof window !== 'undefined' ? (localStorage.getItem('nout_mobile_nav_style') as NavStyle) : null
+    return saved === 'detached' ? 'detached' : 'pill'
+  })
 
   const [activeButtons, setActiveButtons] = useState<NavItemId[]>(() => {
     try {
@@ -116,6 +135,32 @@ export function MobileNav({
     }
   })
 
+  // Synchronize when parent props or external events change
+  useEffect(() => {
+    propPosition && setPosition(propPosition)
+  }, [propPosition])
+
+  useEffect(() => {
+    propIsCollapsed !== undefined && setIsCollapsed(propIsCollapsed)
+  }, [propIsCollapsed])
+
+  useEffect(() => {
+    propNavStyle && setNavStyle(propNavStyle)
+  }, [propNavStyle])
+
+  useEffect(() => {
+    const handleNavChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ position?: NavPosition; isCollapsed?: boolean; navStyle?: NavStyle }>).detail
+      if (detail) {
+        detail.position && setPosition(detail.position)
+        detail.isCollapsed !== undefined && setIsCollapsed(detail.isCollapsed)
+        detail.navStyle && setNavStyle(detail.navStyle)
+      }
+    }
+    window.addEventListener('nout:mobile_nav_change', handleNavChange)
+    return () => window.removeEventListener('nout:mobile_nav_change', handleNavChange)
+  }, [])
+
   const currentDoc = documents.find((d) => d.id === currentView)
   const hideFab = currentDoc && (currentDoc.type === 'canvas' || currentDoc.type === 'pdf' || (currentDoc as any).type === 'ebook')
 
@@ -124,18 +169,30 @@ export function MobileNav({
     cb()
   }
 
+  const broadcastNavChange = (pos: NavPosition, collapsed: boolean, style: NavStyle) => {
+    onNavConfigChange?.({ position: pos, isCollapsed: collapsed, navStyle: style })
+    window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: pos, isCollapsed: collapsed, navStyle: style } }))
+  }
+
   const handleToggleCollapse = (collapsed: boolean) => {
     setIsCollapsed(collapsed)
     localStorage.setItem('nout_mobile_nav_collapsed', String(collapsed))
     triggerHaptic('light')
-    window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position, isCollapsed: collapsed } }))
+    broadcastNavChange(position, collapsed, navStyle)
   }
 
   const handlePositionChange = (pos: NavPosition) => {
     setPosition(pos)
     localStorage.setItem('nout_mobile_nav_pos', pos)
     triggerHaptic('selection')
-    window.dispatchEvent(new CustomEvent('nout:mobile_nav_change', { detail: { position: pos, isCollapsed } }))
+    broadcastNavChange(pos, isCollapsed, navStyle)
+  }
+
+  const handleStyleChange = (style: NavStyle) => {
+    setNavStyle(style)
+    localStorage.setItem('nout_mobile_nav_style', style)
+    triggerHaptic('selection')
+    broadcastNavChange(position, isCollapsed, style)
   }
 
   const handleToggleButton = (id: NavItemId) => {
@@ -179,7 +236,9 @@ export function MobileNav({
         aria-label="Mobile Navigation"
         className={cn(
           POSITION_CONTAINER_CLASSES[position],
-          "flex items-center justify-around pointer-events-auto transition-all duration-200"
+          navStyle === 'pill'
+            ? "w-fit max-w-[94vw] px-2 py-1.5 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] flex items-center justify-center gap-1 pointer-events-auto transition-all duration-200"
+            : "w-fit flex items-center justify-center gap-2 bg-transparent border-0 shadow-none p-0 pointer-events-auto transition-all duration-200"
         )}
       >
         {activeButtons.map((btnId) => {
@@ -194,58 +253,83 @@ export function MobileNav({
               aria-label={item.label}
               onClick={() => handleAction(buttonActionMap[btnId], btnId === 'tabs' ? 'light' : 'selection')}
               className={cn(
-                "flex items-center justify-center min-h-[44px] text-xs group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-95",
-                isVertical ? "flex-col w-full py-2" : "flex-col flex-1 py-1"
+                "group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-90",
+                navStyle === 'pill'
+                  ? cn(
+                      "flex items-center justify-center rounded-full transition-all duration-200 relative",
+                      isVertical ? "flex-col w-11 py-2 px-1" : "flex-row gap-1 px-3 py-1.5",
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )
+                  : cn(
+                      "h-11 w-11 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md flex items-center justify-center relative",
+                      isActive ? "ring-2 ring-primary text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
+                    )
               )}
             >
-              <div
-                className={cn(
-                  "rounded-full transition-all duration-200 flex items-center justify-center relative",
-                  isVertical ? "p-2" : "px-4 py-1",
-                  isActive
-                    ? "bg-secondary text-foreground shadow-xs ring-1 ring-border/50"
-                    : "text-muted-foreground group-hover:text-foreground"
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                {btnId === 'tabs' && (
-                  <span className="absolute -top-0.5 right-1 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center shadow-xs">
-                    {tabs.length}
-                  </span>
-                )}
-              </div>
-              <span
-                className={cn(
-                  "text-[9px] font-medium tracking-tight mt-0.5 transition-colors truncate max-w-full",
-                  isActive ? "text-foreground font-semibold" : "text-muted-foreground"
-                )}
-              >
-                {item.label}
-              </span>
+              <Icon className="h-4 w-4 shrink-0" />
+              {navStyle === 'pill' && !isVertical && (
+                <span className="text-[11px] font-medium tracking-tight whitespace-nowrap">
+                  {item.label}
+                </span>
+              )}
+              {btnId === 'tabs' && (
+                <span className="absolute -top-1 -right-1 min-w-[15px] h-3.5 px-1 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center shadow-xs">
+                  {tabs.length}
+                </span>
+              )}
             </button>
           )
         })}
 
-        {/* Spatial & Visibility Control Popover */}
+        {/* Spatial, Style & Visibility Control Popover */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label="Opciones de barra móvil"
               className={cn(
-                "p-1.5 rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90 transition-all",
-                isVertical ? "my-1" : "mx-1"
+                "rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
+                navStyle === 'pill'
+                  ? "p-1.5 hover:bg-secondary/60"
+                  : "h-9 w-9 bg-card/90 dark:bg-card/75 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-sm"
               )}
             >
-              <SlidersHorizontal className="w-4 h-4" />
+              <SlidersHorizontal className="w-3.5 h-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align={isVertical ? (position === 'left' ? 'start' : 'end') : 'center'}
             side={position === 'bottom' ? 'top' : position === 'top' ? 'bottom' : 'right'}
-            className="w-56 p-2 rounded-2xl border-border/80 shadow-2xl"
+            className="w-60 p-2.5 rounded-2xl border-border/80 shadow-2xl"
           >
-            <DropdownMenuLabel className="text-xs font-semibold">Ubicación de la Barra</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-semibold">Estilo de Navegación</DropdownMenuLabel>
+            <div className="grid grid-cols-2 gap-1 p-0.5 bg-secondary/60 rounded-xl my-1 text-xs">
+              <button
+                type="button"
+                onClick={() => handleStyleChange('pill')}
+                className={cn(
+                  "py-1 rounded-lg font-medium transition-all text-center",
+                  navStyle === 'pill' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
+                )}
+              >
+                Pill Flotante
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStyleChange('detached')}
+                className={cn(
+                  "py-1 rounded-lg font-medium transition-all text-center",
+                  navStyle === 'detached' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
+                )}
+              >
+                Sueltos
+              </button>
+            </div>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-semibold">Ubicación</DropdownMenuLabel>
             <div className="grid grid-cols-2 gap-1 p-1 bg-secondary/50 rounded-xl my-1 text-xs">
               {(['bottom', 'top', 'left', 'right'] as NavPosition[]).map((pos) => (
                 <button
@@ -295,13 +379,18 @@ export function MobileNav({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Quick Collapse Chevron Button */}
+        {/* Quick Collapse Chevron */}
         <button
           type="button"
           onClick={() => handleToggleCollapse(true)}
           aria-label="Ocultar barra móvil"
           title="Ocultar barra"
-          className="p-1 rounded-full text-muted-foreground/40 hover:text-foreground active:scale-90"
+          className={cn(
+            "rounded-full text-muted-foreground/50 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
+            navStyle === 'pill'
+              ? "p-1 hover:bg-secondary/60"
+              : "h-9 w-9 bg-card/90 dark:bg-card/75 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-sm"
+          )}
         >
           <CollapseIcon className="w-3.5 h-3.5" />
         </button>

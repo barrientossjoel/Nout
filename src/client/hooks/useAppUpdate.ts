@@ -51,7 +51,11 @@ export function useAppUpdate() {
     setUpdateState({ status: 'checking' });
 
     try {
-      const currentVersion = APP_VERSION;
+      let currentVersion = APP_VERSION;
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        currentVersion = await getVersion();
+      } catch {}
 
       const res = await fetch(GITHUB_RELEASES_API, {
         headers: { Accept: 'application/vnd.github.v3+json' },
