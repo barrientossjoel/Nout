@@ -20,7 +20,13 @@ import { MoveDocumentDialog } from '../documents/components/move-document-dialog
 import { updateDocument } from '../../actions/actions';
 
 export type HeaderSlot = 'profile' | 'search' | 'settings' | 'new-note' | 'sidebar';
+export type LayoutMode = 'masonry' | 'grid';
 type FilterCategory = 'all' | 'favorites' | 'text' | 'canvas' | 'pdf';
+
+export interface MobileGridConfig {
+  mode: LayoutMode;
+  columns: number;
+}
 
 const FILTER_PREDICATES: Record<FilterCategory, (d: Document) => boolean> = {
   all: () => true,
@@ -71,9 +77,21 @@ export function MobileNotesHome({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [movingDoc, setMovingDoc] = useState<Document | null>(null);
+  const [expandingId, setExpandingId] = useState<string | null>(null);
+
   const [slot, setSlot] = useState<HeaderSlot>(() =>
     (localStorage.getItem('nout_mobile_header_slot') as HeaderSlot) || 'profile'
   );
+
+  const [gridConfig, setGridConfig] = useState<MobileGridConfig>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('nout_mobile_grid');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return { mode: 'masonry', columns: 2 };
+  });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,12 +108,30 @@ export function MobileNotesHome({
     triggerHaptic('selection');
   };
 
+  const handleUpdateGrid = (partial: Partial<MobileGridConfig>) => {
+    setGridConfig((prev) => {
+      const updated = { ...prev, ...partial };
+      localStorage.setItem('nout_mobile_grid', JSON.stringify(updated));
+      triggerHaptic('selection');
+      return updated;
+    });
+  };
+
   const handleHomeClick = () => {
     triggerHaptic('light');
     setSearchQuery('');
     setFilter('all');
     setIsSearching(false);
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenNote = (id: string) => {
+    triggerHaptic('selection');
+    setExpandingId(id);
+    setTimeout(() => {
+      onOpenDocument(id);
+      setExpandingId(null);
+    }, 150);
   };
 
   const toggleFavorite = (doc: Document) => {
@@ -194,52 +230,118 @@ export function MobileNotesHome({
             )}
           </div>
 
-          {/* Slot de Acción Configurable */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={slot !== 'profile' ? handleSlotPrimaryClick : undefined}>
-              {renderSlotTrigger()}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-2xl shadow-xl border-border/80">
-              <div className="px-3 py-1.5 border-b border-border/40 mb-1">
-                <p className="text-xs font-semibold text-foreground truncate">{user?.name || 'Perfil Local'}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'Modo local'}</p>
-              </div>
-              <DropdownMenuItem className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs" onClick={() => openSettings('account')}>
-                <UserIcon className="w-4 h-4 text-muted-foreground" />
-                <span>Mi Cuenta (Foto y Perfil)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs" onClick={() => openSettings('general')}>
-                <Settings className="w-4 h-4 text-muted-foreground" />
-                <span>Ajustes</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="cursor-pointer gap-2.5 py-2 rounded-xl text-xs">
-                  <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
-                  <span>Cambiar este botón</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-48 p-1 rounded-xl">
-                  <DropdownMenuRadioGroup value={slot} onValueChange={(v) => handleSlotChange(v as HeaderSlot)}>
-                    {Object.entries(SLOT_CONFIG).map(([k, { label }]) => (
-                      <DropdownMenuRadioItem key={k} value={k} className="text-xs py-1.5">{label}</DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              {user && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs text-destructive focus:text-destructive"
-                    onClick={() => { triggerHaptic('light'); logout(); }}
+          <div className="flex items-center gap-1">
+            {/* Grid & Masonry View Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="p-2 rounded-full hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground"
+                  aria-label="Configurar grilla"
+                  title="Configurar grilla"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 p-2.5 rounded-2xl shadow-xl border-border/80">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-xs font-semibold text-foreground">Distribución</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-secondary text-muted-foreground font-semibold">
+                    {gridConfig.columns}x{gridConfig.columns} {gridConfig.mode === 'masonry' ? 'Pinterest' : 'Grilla'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1 p-0.5 bg-secondary/60 rounded-xl mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateGrid({ mode: 'masonry' })}
+                    className={cn(
+                      "text-xs py-1.5 rounded-lg font-medium transition-all text-center",
+                      gridConfig.mode === 'masonry' ? "bg-card text-foreground shadow-xs font-semibold" : "text-muted-foreground"
+                    )}
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Cerrar sesión</span>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    Pinterest
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateGrid({ mode: 'grid' })}
+                    className={cn(
+                      "text-xs py-1.5 rounded-lg font-medium transition-all text-center",
+                      gridConfig.mode === 'grid' ? "bg-card text-foreground shadow-xs font-semibold" : "text-muted-foreground"
+                    )}
+                  >
+                    Grilla
+                  </button>
+                </div>
+                <div className="px-1">
+                  <span className="text-[11px] text-muted-foreground block mb-1.5">Columnas (1 a 7)</span>
+                  <div className="grid grid-cols-7 gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => handleUpdateGrid({ columns: num })}
+                        className={cn(
+                          "h-7 rounded-lg text-xs font-semibold transition-all active:scale-95 flex items-center justify-center",
+                          gridConfig.columns === num 
+                            ? "bg-primary text-primary-foreground shadow-xs" 
+                            : "bg-secondary/70 text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Slot de Acción Configurable */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={slot !== 'profile' ? handleSlotPrimaryClick : undefined}>
+                {renderSlotTrigger()}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-2xl shadow-xl border-border/80">
+                <div className="px-3 py-1.5 border-b border-border/40 mb-1">
+                  <p className="text-xs font-semibold text-foreground truncate">{user?.name || 'Perfil Local'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'Modo local'}</p>
+                </div>
+                <DropdownMenuItem className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs" onClick={() => openSettings('account')}>
+                  <UserIcon className="w-4 h-4 text-muted-foreground" />
+                  <span>Mi Cuenta (Foto y Perfil)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs" onClick={() => openSettings('general')}>
+                  <Settings className="w-4 h-4 text-muted-foreground" />
+                  <span>Ajustes</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="cursor-pointer gap-2.5 py-2 rounded-xl text-xs">
+                    <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+                    <span>Cambiar este botón</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48 p-1 rounded-xl">
+                    <DropdownMenuRadioGroup value={slot} onValueChange={(v) => handleSlotChange(v as HeaderSlot)}>
+                      {Object.entries(SLOT_CONFIG).map(([k, { label }]) => (
+                        <DropdownMenuRadioItem key={k} value={k} className="text-xs py-1.5">{label}</DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                {user && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer gap-2.5 py-1.5 rounded-xl text-xs text-destructive focus:text-destructive"
+                      onClick={() => { triggerHaptic('light'); logout(); }}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Cerrar sesión</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Filtros dinámicos (sin scroll horizontal, wrap fluido) */}
@@ -275,8 +377,8 @@ export function MobileNotesHome({
         )}
       </header>
 
-      {/* Lista de Notas */}
-      <main className="px-4 mt-3 space-y-3 flex-1">
+      {/* Lista de Notas (Masonry Pinterest vs Grilla Matriz) */}
+      <main className="px-3.5 mt-3 flex-1">
         {filteredDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground px-6 animate-in fade-in">
             <div className="w-16 h-16 rounded-3xl bg-secondary/70 flex items-center justify-center text-muted-foreground/60 mb-3">
@@ -286,74 +388,106 @@ export function MobileNotesHome({
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">{q ? 'Probá con otras palabras clave.' : 'Tocá el botón + para crear tu primera nota.'}</p>
           </div>
         ) : (
-          filteredDocs.map((doc) => {
-            const Icon = doc.type === 'canvas' ? Frame : doc.type === 'pdf' ? FileDown : FileText;
-            const snippet = typeof doc.content === 'string'
-              ? doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim().slice(0, 110) || 'Sin contenido'
-              : doc.type === 'canvas' ? 'Lienzo visual' : 'Documento';
+          <div
+            style={
+              gridConfig.mode === 'masonry'
+                ? {
+                    columnCount: gridConfig.columns,
+                    columnGap: '0.625rem',
+                  }
+                : {
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${gridConfig.columns}, minmax(0, 1fr))`,
+                    gap: '0.625rem',
+                  }
+            }
+          >
+            {filteredDocs.map((doc) => {
+              const Icon = doc.type === 'canvas' ? Frame : doc.type === 'pdf' ? FileDown : FileText;
+              const isDense = gridConfig.columns >= 3;
+              const isVeryDense = gridConfig.columns >= 5;
 
-            const dateStr = doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+              const snippet = typeof doc.content === 'string'
+                ? doc.content.replace(/<[^>]+>/g, ' ').replace(/[#*_`]/g, '').trim().slice(0, isDense ? 45 : 120) || 'Sin contenido'
+                : doc.type === 'canvas' ? 'Lienzo visual' : 'Documento';
 
-            return (
-              <article
-                key={doc.id}
-                onClick={() => { triggerHaptic('selection'); onOpenDocument(doc.id); }}
-                className="p-4 rounded-2xl border border-border/70 bg-card hover:bg-card/80 active:scale-[0.98] transition-all duration-150 shadow-xs cursor-pointer flex flex-col justify-between"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <h2 className="font-semibold text-sm text-foreground truncate">{doc.title || 'Nota sin título'}</h2>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {doc.isFavorite && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); }}
-                          className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl">
-                        <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); toggleFavorite(doc); }}>
-                          <Star className={cn('w-4 h-4', doc.isFavorite && 'text-amber-400 fill-amber-400')} />
-                          <span>{doc.isFavorite ? 'Quitar favorita' : 'Marcar favorita'}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); setMovingDoc(doc); }}>
-                          <FolderInput className="w-4 h-4 text-muted-foreground" />
-                          <span>Mover a...</span>
-                        </DropdownMenuItem>
-                        {onDeleteDocument && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="cursor-pointer gap-2 py-2 text-destructive focus:text-destructive"
-                              onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); onDeleteDocument(doc.id); }}
+              const dateStr = doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+              const isExpanding = expandingId === doc.id;
+
+              return (
+                <article
+                  key={doc.id}
+                  onClick={() => handleOpenNote(doc.id)}
+                  className={cn(
+                    "rounded-2xl border border-border/70 bg-card hover:bg-card/90 cursor-pointer flex flex-col justify-between transition-all duration-200 shadow-xs",
+                    gridConfig.mode === 'masonry' && "break-inside-avoid mb-2.5",
+                    isDense ? "p-2.5" : "p-3.5",
+                    isExpanding && "scale-[1.04] opacity-90 shadow-2xl z-30 ring-2 ring-primary/40 duration-150"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Icon className={cn("text-muted-foreground shrink-0", isDense ? "w-3.5 h-3.5" : "w-4 h-4")} />
+                      <h2 className={cn("font-semibold text-foreground truncate", isDense ? "text-xs" : "text-sm")}>
+                        {doc.title || 'Nota sin título'}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {doc.isFavorite && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
+                      {!isVeryDense && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); }}
+                              className="p-1 rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90"
                             >
-                              <Trash2 className="w-4 h-4" />
-                              <span>Eliminar</span>
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl">
+                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); toggleFavorite(doc); }}>
+                              <Star className={cn('w-4 h-4', doc.isFavorite && 'text-amber-400 fill-amber-400')} />
+                              <span>{doc.isFavorite ? 'Quitar favorita' : 'Marcar favorita'}</span>
                             </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); setMovingDoc(doc); }}>
+                              <FolderInput className="w-4 h-4 text-muted-foreground" />
+                              <span>Mover a...</span>
+                            </DropdownMenuItem>
+                            {onDeleteDocument && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="cursor-pointer gap-2 py-2 text-destructive focus:text-destructive"
+                                  onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); onDeleteDocument(doc.id); }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span>Eliminar</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">{snippet}</p>
+                  {!isVeryDense && (
+                    <p className={cn("text-muted-foreground mt-2 leading-relaxed", isDense ? "text-[11px] line-clamp-1" : "text-xs line-clamp-3")}>
+                      {snippet}
+                    </p>
+                  )}
 
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground/70 mt-3 pt-2 border-t border-border/30">
-                  <span>{dateStr}</span>
-                  <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-medium">
-                    {doc.type === 'canvas' ? 'Lienzo' : doc.type === 'pdf' ? 'PDF' : 'Nota'}
-                  </span>
-                </div>
-              </article>
-            );
-          })
+                  <div className={cn("flex items-center justify-between text-muted-foreground/70 mt-2.5 pt-1.5 border-t border-border/30", isDense ? "text-[10px]" : "text-[11px]")}>
+                    <span>{dateStr}</span>
+                    <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider font-medium">
+                      {doc.type === 'canvas' ? 'Lienzo' : doc.type === 'pdf' ? 'PDF' : 'Nota'}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
       </main>
 
