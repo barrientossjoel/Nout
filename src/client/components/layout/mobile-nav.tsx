@@ -65,10 +65,10 @@ const POSITION_CONTAINER_CLASSES: Record<NavPosition, string> = {
 }
 
 const EXPAND_TRIGGER_CLASSES: Record<NavPosition, string> = {
-  bottom: "fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3.5 py-1.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground",
-  top: "fixed top-3 left-1/2 -translate-x-1/2 z-[1000] rounded-full px-3.5 py-1.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground",
-  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
-  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center text-muted-foreground hover:text-foreground",
+  bottom: "fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95",
+  top: "fixed top-3 left-1/2 -translate-x-1/2 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95",
+  left: "fixed top-1/2 -translate-y-1/2 left-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95",
+  right: "fixed top-1/2 -translate-y-1/2 right-3 z-[1000] rounded-full p-2.5 shadow-xl bg-card/90 dark:bg-card/80 border border-black/10 dark:border-white/15 backdrop-blur-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95",
 }
 
 const CHEVRON_MAP: Record<NavPosition, { collapse: React.ComponentType<{ className?: string }>; expand: React.ComponentType<{ className?: string }> }> = {
@@ -206,7 +206,10 @@ export function MobileNav({
     })
   }
 
-  const isVertical = position === 'left' || position === 'right'
+  const activePosition = propPosition ?? position
+  const activeIsCollapsed = propIsCollapsed ?? isCollapsed
+  const activeNavStyle = propNavStyle ?? navStyle
+  const isVertical = activePosition === 'left' || activePosition === 'right'
 
   const buttonActionMap: Record<NavItemId, () => void> = {
     dashboard: () => onNavigate('dashboard'),
@@ -217,28 +220,28 @@ export function MobileNav({
     settings: onOpenSettings,
   }
 
-  const CollapseIcon = CHEVRON_MAP[position].collapse
-  const ExpandIcon = CHEVRON_MAP[position].expand
+  const CollapseIcon = CHEVRON_MAP[activePosition].collapse
+  const ExpandIcon = CHEVRON_MAP[activePosition].expand
 
-  return isCollapsed ? (
+  return activeIsCollapsed ? (
     <button
       type="button"
       onClick={() => handleToggleCollapse(false)}
-      className={EXPAND_TRIGGER_CLASSES[position]}
+      className={EXPAND_TRIGGER_CLASSES[activePosition]}
       aria-label="Mostrar barra de navegación"
     >
       <ExpandIcon className="w-4 h-4 text-primary" />
-      {!isVertical && <span className="font-semibold text-[10px]">Menú</span>}
     </button>
   ) : (
     <>
       <nav
         aria-label="Mobile Navigation"
         className={cn(
-          POSITION_CONTAINER_CLASSES[position],
-          navStyle === 'pill'
-            ? "w-fit max-w-[94vw] px-2 py-1.5 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] flex items-center justify-center gap-1 pointer-events-auto transition-all duration-200"
-            : "w-fit flex items-center justify-center gap-2 bg-transparent border-0 shadow-none p-0 pointer-events-auto transition-all duration-200"
+          POSITION_CONTAINER_CLASSES[activePosition],
+          "items-center justify-center pointer-events-auto transition-all duration-200",
+          activeNavStyle === 'pill'
+            ? "w-fit max-w-[94vw] p-1.5 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.35)] gap-1.5"
+            : "w-fit bg-transparent border-0 shadow-none backdrop-blur-none p-0 gap-2"
         )}
       >
         {activeButtons.map((btnId) => {
@@ -253,27 +256,21 @@ export function MobileNav({
               aria-label={item.label}
               onClick={() => handleAction(buttonActionMap[btnId], btnId === 'tabs' ? 'light' : 'selection')}
               className={cn(
-                "group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-90",
-                navStyle === 'pill'
+                "group cursor-pointer focus-visible:outline-none select-none transition-transform active:scale-90 flex items-center justify-center relative",
+                activeNavStyle === 'pill'
                   ? cn(
-                      "flex items-center justify-center rounded-full transition-all duration-200 relative",
-                      isVertical ? "flex-col w-11 py-2 px-1" : "flex-row gap-1 px-3 py-1.5",
+                      "h-10 w-10 rounded-full transition-all duration-200",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                     )
                   : cn(
-                      "h-11 w-11 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md flex items-center justify-center relative",
+                      "h-11 w-11 rounded-full bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md",
                       isActive ? "ring-2 ring-primary text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
                     )
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {navStyle === 'pill' && !isVertical && (
-                <span className="text-[11px] font-medium tracking-tight whitespace-nowrap">
-                  {item.label}
-                </span>
-              )}
               {btnId === 'tabs' && (
                 <span className="absolute -top-1 -right-1 min-w-[15px] h-3.5 px-1 rounded-full bg-blue-600 text-[9px] font-bold text-white flex items-center justify-center shadow-xs">
                   {tabs.length}
@@ -291,17 +288,17 @@ export function MobileNav({
               aria-label="Opciones de barra móvil"
               className={cn(
                 "rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
-                navStyle === 'pill'
-                  ? "p-1.5 hover:bg-secondary/60"
-                  : "h-9 w-9 bg-card/90 dark:bg-card/75 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-sm"
+                activeNavStyle === 'pill'
+                  ? "h-9 w-9 hover:bg-secondary/60"
+                  : "h-11 w-11 bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md"
               )}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            align={isVertical ? (position === 'left' ? 'start' : 'end') : 'center'}
-            side={position === 'bottom' ? 'top' : position === 'top' ? 'bottom' : 'right'}
+            align={isVertical ? (activePosition === 'left' ? 'start' : 'end') : 'center'}
+            side={activePosition === 'bottom' ? 'top' : activePosition === 'top' ? 'bottom' : 'right'}
             className="w-60 p-2.5 rounded-2xl border-border/80 shadow-2xl"
           >
             <DropdownMenuLabel className="text-xs font-semibold">Estilo de Navegación</DropdownMenuLabel>
@@ -311,7 +308,7 @@ export function MobileNav({
                 onClick={() => handleStyleChange('pill')}
                 className={cn(
                   "py-1 rounded-lg font-medium transition-all text-center",
-                  navStyle === 'pill' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
+                  activeNavStyle === 'pill' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
                 )}
               >
                 Pill Flotante
@@ -321,7 +318,7 @@ export function MobileNav({
                 onClick={() => handleStyleChange('detached')}
                 className={cn(
                   "py-1 rounded-lg font-medium transition-all text-center",
-                  navStyle === 'detached' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
+                  activeNavStyle === 'detached' ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
                 )}
               >
                 Sueltos
@@ -338,7 +335,7 @@ export function MobileNav({
                   onClick={() => handlePositionChange(pos)}
                   className={cn(
                     "py-1 rounded-lg capitalize font-medium transition-all text-center",
-                    position === pos ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
+                    activePosition === pos ? "bg-card text-foreground font-semibold shadow-xs" : "text-muted-foreground"
                   )}
                 >
                   {POSITION_LABELS[pos]}
@@ -386,10 +383,10 @@ export function MobileNav({
           aria-label="Ocultar barra móvil"
           title="Ocultar barra"
           className={cn(
-            "rounded-full text-muted-foreground/50 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
-            navStyle === 'pill'
-              ? "p-1 hover:bg-secondary/60"
-              : "h-9 w-9 bg-card/90 dark:bg-card/75 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-sm"
+            "rounded-full text-muted-foreground/60 hover:text-foreground active:scale-90 transition-all flex items-center justify-center",
+            activeNavStyle === 'pill'
+              ? "h-8 w-8 hover:bg-secondary/60"
+              : "h-11 w-11 bg-card/90 dark:bg-card/80 backdrop-blur-xl border border-black/10 dark:border-white/15 shadow-md"
           )}
         >
           <CollapseIcon className="w-3.5 h-3.5" />
@@ -397,7 +394,7 @@ export function MobileNav({
       </nav>
 
       {/* Material Design 3 Floating Action Button (FAB) */}
-      {!hideFab && !activeButtons.includes('create') && position === 'bottom' && (
+      {!hideFab && !activeButtons.includes('create') && activePosition === 'bottom' && (
         <div className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-[120]">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

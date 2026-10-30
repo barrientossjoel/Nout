@@ -19,7 +19,7 @@ import {
 import { cn } from '../../../lib/utils/utils'
 import { triggerHaptic } from '../../../lib/utils/haptics'
 import { SearchCommand } from '../../../components/search/search-command'
-import { splitNode, addTabToPane, updateTab, findLayoutNode, pinTab, closeTab, findFirstPaneId } from '../../../lib/utils/layout-utils'
+import { splitNode, addTabToPane, updateTab, findLayoutNode, pinTab, closeTab, findFirstPaneId, selectTabInPane } from '../../../lib/utils/layout-utils'
 import { CanvasView } from '../../canvas/canvas-view'
 import { Button } from '../../../components/ui/button'
 import { PanelLeft } from 'lucide-react'
@@ -109,12 +109,19 @@ function NotesAppInner() {
     }
   }, [isMobile])
 
+  // Initialize base history state on mobile for Android back gesture
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.history.state) {
+      window.history.replaceState({ view: 'dashboard' }, '')
+    }
+  }, [])
+
   // Native Android back button & edge swipe gesture via popstate
   useEffect(() => {
     const handlePopState = () => {
       const isDoc = currentView !== 'dashboard' && currentView !== 'calendar' && currentView !== 'trash' && currentView !== 'graph' && currentView !== 'ai'
       if (isDoc) {
-        setCurrentView('dashboard')
+        handleNavigate('dashboard')
       } else if (isSettingsOpen) {
         setIsSettingsOpen(false)
       } else if (isSearchOpen) {
@@ -318,8 +325,11 @@ function NotesAppInner() {
 
     if (inPane && isDoc) {
       setLayout(prev => splitNode(prev, activePaneId, 'horizontal', view))
-    } else {
+    } else if (isDoc) {
       updateLayoutWithDoc(view, isPreview)
+    } else {
+      const paneId = activePaneId || findFirstPaneId(layout) || ''
+      paneId && setLayout(prev => selectTabInPane(prev, paneId, view))
     }
 
     if (isMobile) {
@@ -339,7 +349,7 @@ function NotesAppInner() {
         }
       }
 
-      const paneIdToUpdate = activePaneId || findLayoutNode(prev, '')?.id || '';
+      const paneIdToUpdate = activePaneId || findFirstPaneId(prev) || '';
       return addTabToPane(prev, paneIdToUpdate, docId, true, isPreview);
     })
   }
@@ -430,13 +440,16 @@ function NotesAppInner() {
                 onTouchEnd={(e) => {
                   if (!touchStartRef.current || !isMobile || !isInsideDoc) return
                   const t = e.changedTouches[0]
-                  const deltaX = t.clientX - touchStartRef.current.x
+                  const startX = touchStartRef.current.x
+                  const deltaX = t.clientX - startX
                   const deltaY = t.clientY - touchStartRef.current.y
                   const deltaTime = Date.now() - touchStartRef.current.time
                   touchStartRef.current = null
 
-                  // Tactile swipe gesture back to dashboard from inside doc
-                  if (Math.abs(deltaX) > 75 && Math.abs(deltaY) < 60 && deltaTime < 550) {
+                  // Tactile swipe gesture back to dashboard from inside doc:
+                  // Swiping right (deltaX > 60 or edge swipe starting at < 40px with deltaX > 35)
+                  const isRightSwipe = deltaX > 60 || (startX < 40 && deltaX > 35)
+                  if (isRightSwipe && Math.abs(deltaY) < 75 && deltaTime < 650) {
                     triggerHaptic('light')
                     handleNavigate('dashboard')
                   }

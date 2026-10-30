@@ -413,7 +413,7 @@ export function Workspace({
 
     const renderNode = (node: LayoutNode) => {
         if (node.type === 'pane') {
-            const activeTabId = node.activeTabId
+            const activeTabId = (isMobile && currentView) ? currentView : (node.activeTabId || currentView || 'dashboard')
             const doc = documents.find(d => d.id === activeTabId)
             const isActive = node.id === activePaneId
             const isFirstPane = node.id === firstPaneId

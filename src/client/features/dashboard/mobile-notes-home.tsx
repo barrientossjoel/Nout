@@ -111,6 +111,7 @@ export function MobileNotesHome({
   const [isSearching, setIsSearching] = useState(false);
   const [movingDoc, setMovingDoc] = useState<Document | null>(null);
   const [expandingId, setExpandingId] = useState<string | null>(null);
+  const [menuDocId, setMenuDocId] = useState<string | null>(null);
 
   const [slot, setSlot] = useState<HeaderSlot>(() =>
     (localStorage.getItem('nout_mobile_header_slot') as HeaderSlot) || 'profile'
@@ -127,19 +128,8 @@ export function MobileNotesHome({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const touchStartY = useRef<number>(0);
-  const isScrollingRef = useRef<boolean>(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-    isScrollingRef.current = false;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (Math.abs(e.touches[0].clientY - touchStartY.current) > 6) {
-      isScrollingRef.current = true;
-    }
-  };
+  const cardTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const dotsTouchStart = useRef<{ x: number; y: number } | null>(null);
 
   const openSettings = (tab = 'account') => {
     triggerHaptic('selection');
@@ -171,13 +161,12 @@ export function MobileNotesHome({
   };
 
   const handleOpenNote = (id: string) => {
-    if (isScrollingRef.current) return;
     triggerHaptic('selection');
     setExpandingId(id);
     setTimeout(() => {
       onOpenDocument(id);
       setExpandingId(null);
-    }, 150);
+    }, 120);
   };
 
   const toggleFavorite = (doc: Document) => {
@@ -233,8 +222,6 @@ export function MobileNotesHome({
   return (
     <div
       ref={containerRef}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       className="flex flex-col h-full bg-background text-foreground overflow-y-auto pb-28 pt-1 select-none"
     >
       {/* Header independiente: transparente, elementos flotantes separados */}
@@ -482,7 +469,23 @@ export function MobileNotesHome({
               return (
                 <article
                   key={doc.id}
-                  onClick={() => handleOpenNote(doc.id)}
+                  onTouchStart={(e) => {
+                    cardTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                  }}
+                  onTouchEnd={(e) => {
+                    if (!cardTouchStart.current) return;
+                    const t = e.changedTouches[0];
+                    const dist = Math.hypot(t.clientX - cardTouchStart.current.x, t.clientY - cardTouchStart.current.y);
+                    cardTouchStart.current = null;
+                    if (dist <= 4) {
+                      handleOpenNote(doc.id);
+                    }
+                  }}
+                  onClick={() => {
+                    if (!('ontouchstart' in window)) {
+                      handleOpenNote(doc.id);
+                    }
+                  }}
                   className={cn(
                     "rounded-2xl border border-black/10 dark:border-white/20 hover:dark:border-white/40 bg-card/90 dark:bg-card/70 cursor-pointer flex flex-col justify-between transition-all duration-200 shadow-xs",
                     gridConfig.mode === 'masonry' && "break-inside-avoid mb-2.5",
@@ -500,14 +503,35 @@ export function MobileNotesHome({
                     <div className="flex items-center gap-0.5 shrink-0">
                       {doc.isFavorite && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
                       {!isVeryDense && (
-                        <DropdownMenu>
+                        <DropdownMenu open={menuDocId === doc.id} onOpenChange={(open) => setMenuDocId(open ? doc.id : null)}>
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
+                              aria-label="Opciones de nota"
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onTouchStart={(e) => {
+                                e.stopPropagation();
+                                dotsTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                              }}
+                              onTouchEnd={(e) => {
+                                e.stopPropagation();
+                                if (!dotsTouchStart.current) return;
+                                const t = e.changedTouches[0];
+                                const dist = Math.hypot(t.clientX - dotsTouchStart.current.x, t.clientY - dotsTouchStart.current.y);
+                                dotsTouchStart.current = null;
+                                if (dist <= 4) {
+                                  triggerHaptic('light');
+                                  setMenuDocId((prev) => (prev === doc.id ? null : doc.id));
+                                }
+                              }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (isScrollingRef.current) return;
-                                triggerHaptic('light');
+                                if (!('ontouchstart' in window)) {
+                                  setMenuDocId((prev) => (prev === doc.id ? null : doc.id));
+                                }
                               }}
                               className="p-1 rounded-full text-muted-foreground/70 hover:text-foreground active:scale-90"
                             >
@@ -515,11 +539,11 @@ export function MobileNotesHome({
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl">
-                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); toggleFavorite(doc); }}>
+                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); setMenuDocId(null); toggleFavorite(doc); }}>
                               <Star className={cn('w-4 h-4', doc.isFavorite && 'text-amber-400 fill-amber-400')} />
                               <span>{doc.isFavorite ? 'Quitar favorita' : 'Marcar favorita'}</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); setMovingDoc(doc); }}>
+                            <DropdownMenuItem className="cursor-pointer gap-2 py-2" onClick={(e) => { e.stopPropagation(); setMenuDocId(null); setMovingDoc(doc); }}>
                               <FolderInput className="w-4 h-4 text-muted-foreground" />
                               <span>Mover a...</span>
                             </DropdownMenuItem>
@@ -528,7 +552,7 @@ export function MobileNotesHome({
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="cursor-pointer gap-2 py-2 text-destructive focus:text-destructive"
-                                  onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); onDeleteDocument(doc.id); }}
+                                  onClick={(e) => { e.stopPropagation(); setMenuDocId(null); triggerHaptic('light'); onDeleteDocument(doc.id); }}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                   <span>Eliminar</span>
