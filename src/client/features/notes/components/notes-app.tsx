@@ -25,15 +25,11 @@ import { Button } from '../../../components/ui/button'
 import { PanelLeft } from 'lucide-react'
 import { useWorkspaces } from '../../../hooks/useWorkspaces'
 import { MobileNav, type NavPosition, type NavStyle } from '../../../components/layout/mobile-nav'
-import { KeyboardShortcutsProvider, useKeyboardShortcuts, matchesShortcut } from '../../../context/KeyboardShortcutsContext'
+import { useKeyboardShortcuts, matchesShortcut } from '../../../context/KeyboardShortcutsContext'
 
 
 export default function NotesApp() {
-  return (
-    <KeyboardShortcutsProvider>
-      <NotesAppInner />
-    </KeyboardShortcutsProvider>
-  )
+  return <NotesAppInner />
 }
 
 function NotesAppInner() {

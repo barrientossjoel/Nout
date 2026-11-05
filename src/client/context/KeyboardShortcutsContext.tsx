@@ -177,8 +177,16 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
     )
 }
 
+const NOOP = () => {}
+
+const DEFAULT_CONTEXT_VALUE: KeyboardShortcutsContextValue = {
+    shortcuts: DEFAULT_SHORTCUTS,
+    setShortcut: NOOP,
+    resetShortcut: NOOP,
+    resetAll: NOOP,
+}
+
 export function useKeyboardShortcuts(): KeyboardShortcutsContextValue {
     const ctx = useContext(KeyboardShortcutsContext)
-    if (!ctx) throw new Error('useKeyboardShortcuts must be used within KeyboardShortcutsProvider')
-    return ctx
+    return ctx ?? DEFAULT_CONTEXT_VALUE
 }
