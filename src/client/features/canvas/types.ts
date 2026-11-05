@@ -120,6 +120,7 @@ export interface CanvasEnv {
     shapeDrawingMode: 'rectangle' | 'circle' | null
     getArrowMidpoint: (node: CanvasNode) => { x: number, y: number }
     completeArrowConnection: (targetNode: CanvasNode) => void
+    handleContextMenu?: (e: React.MouseEvent) => void
     activeTool: 'select' | 'pencil' | 'eraser' | 'arrow' | 'shape-rectangle' | 'shape-circle'
     setActiveTool: (tool: 'select' | 'pencil' | 'eraser' | 'arrow' | 'shape-rectangle' | 'shape-circle') => void
 }

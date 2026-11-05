@@ -15,8 +15,12 @@ function ImageView({ node, selected }: NodeViewProps) {
     return (
         <NodeViewWrapper className="relative inline-block my-3 group max-w-full leading-none">
             <div
+                onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    setIsFullscreen(true)
+                }}
                 className={cn(
-                    "relative inline-block overflow-hidden rounded-xl border border-border/40 transition-all",
+                    "relative inline-block overflow-hidden rounded-xl border border-border/40 transition-all cursor-pointer",
                     selected && "ring-2 ring-primary"
                 )}
             >
@@ -45,3 +49,4 @@ export const CustomImageExtension = Image.extend({
         return ReactNodeViewRenderer(ImageView)
     },
 })
+

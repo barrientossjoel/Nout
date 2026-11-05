@@ -63,7 +63,11 @@ const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.Re
             className="flex-1 relative group overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10 pointer-events-auto"
             onDoubleClick={(e) => {
                 e.stopPropagation();
-                envRef.current?.initiateEditImage(node.id, node.content);
+                if (!hasError) {
+                    setIsFullscreen(true);
+                } else {
+                    envRef.current?.initiateEditImage(node.id, node.content);
+                }
             }}
         >
             {hasError ? (
@@ -285,6 +289,14 @@ const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps)
                 if (!e.shiftKey && env.selection.size <= 1) {
                     env.setSelection(new Set([node.id]))
                 }
+            }}
+            onContextMenu={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                if (!env.selection.has(node.id)) {
+                    env.setSelection(new Set([node.id]))
+                }
+                env.handleContextMenu?.(e)
             }}
             onMouseUp={(e) => {
                 if (env.isCreatingArrow && env.arrowStart && env.arrowStartNodeId && node.type !== 'arrow') {

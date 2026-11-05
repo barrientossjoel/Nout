@@ -485,7 +485,7 @@ export function CanvasView({
         setIsDrawingMode, setIsEraserMode, setPencilColor, setPencilWidth,
         handleImageUpload, isPanning, isSpacePressed, isCreatingArrow, isDrawingMode, isEraserMode, pencilColor, pencilWidth, currentPath, arrowStart, arrowStartNodeId,
         arrowStartSide, calculateBezierControls, resizingNodeId, nodes, hasMoved, getBestDynamicEnd,
-        shapeDrawingMode, getArrowMidpoint, completeArrowConnection
+        shapeDrawingMode, getArrowMidpoint, completeArrowConnection, handleContextMenu
     })
 
     return (
@@ -867,64 +867,86 @@ export function CanvasView({
 
             {/* Context Menu */}
             {
-                contextMenu && (
-                    <div
-                        className="absolute z-[60] min-w-[200px] overflow-hidden rounded-md border border-border/30 bg-black/10 backdrop-blur-md p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-                        style={{ left: contextMenu.x, top: contextMenu.y }}
-                    >
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground hidden sm:block">Canvas Actions</div>
-                        <div role="separator" className="h-px bg-border/20 my-1" />
-                        <button onClick={() => { triggerFileUpload(); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                            <Upload className="mr-2 h-4 w-4" />
-                            <span>Upload Image</span>
-                        </button>
-                        <button onClick={() => { initiateAddImage(); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                            <Image className="mr-2 h-4 w-4" />
-                            <span>Add Image URL</span>
-                        </button>
-                        <button onClick={() => { setIsCreatingArrow(true); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                            <ArrowRight className="mr-2 h-4 w-4" />
-                            <span>Add Arrow</span>
-                        </button>
-                        <div role="separator" className="h-px bg-border/20 my-1" />
-                        <button onClick={() => { setIsImportOpen(true); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                            <FolderDown className="mr-2 h-4 w-4" />
-                            <span>Import Document</span>
-                        </button>
-                        <div role="separator" className="h-px bg-border/20 my-1" />
-                        <button onClick={() => { setCamera({ x: 0, y: 0, zoom: 1 }); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                            <Move className="mr-2 h-4 w-4" />
-                            <span>Reset View</span>
-                        </button>
-                        {selection && (
-                            <>
-                                <div role="separator" className="h-px bg-border/20 my-1" />
-                                <button onClick={() => { setNodes(prev => prev.filter(n => !selection.has(n.id))); setSelection(new Set()); setContextMenu(null) }} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-destructive/20 hover:text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    <span>Delete Node</span>
-                                </button>
-                                {selection.size > 1 && (
-                                    <>
-                                        <div role="separator" className="h-px bg-border/20 my-1" />
-                                        <button onClick={handleGroup} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                                            <FolderDown className="mr-2 h-4 w-4" />
-                                            <span>Group Selection</span>
-                                        </button>
-                                    </>
-                                )}
-                                {Array.from(selection).some(id => nodes.find(n => n.id === id)?.groupId) && (
-                                    <>
-                                        <div role="separator" className="h-px bg-border/20 my-1" />
-                                        <button onClick={handleUngroup} className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-background/50 hover:text-accent-foreground">
-                                            <FolderDown className="mr-2 h-4 w-4" />
-                                            <span>Ungroup</span>
-                                        </button>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-                )
+                contextMenu && (() => {
+                    const selectedImageNode = selection.size === 1
+                        ? nodes.find(n => selection.has(n.id) && n.type === 'image')
+                        : null;
+                    return (
+                        <div
+                            className="absolute z-[60] min-w-[210px] overflow-hidden rounded-xl border border-white/15 bg-neutral-950/90 backdrop-blur-xl p-1.5 text-white shadow-2xl animate-in fade-in-0 zoom-in-95 select-none"
+                            style={{ left: contextMenu.x, top: contextMenu.y }}
+                        >
+                            <div className="px-2.5 py-1.5 text-xs font-semibold text-white/50 hidden sm:block">Canvas Actions</div>
+                            <div role="separator" className="h-px bg-white/10 my-1" />
+
+                            {selectedImageNode && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            initiateEditImage(selectedImageNode.id, selectedImageNode.content);
+                                            setContextMenu(null);
+                                        }}
+                                        className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/95 outline-none hover:bg-white/10 hover:text-white transition-colors"
+                                    >
+                                        <Pencil className="mr-2 h-4 w-4 text-primary" />
+                                        <span>Editar URL de imagen</span>
+                                    </button>
+                                    <div role="separator" className="h-px bg-white/10 my-1" />
+                                </>
+                            )}
+
+                            <button onClick={() => { triggerFileUpload(); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                <Upload className="mr-2 h-4 w-4" />
+                                <span>Upload Image</span>
+                            </button>
+                            <button onClick={() => { initiateAddImage(); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                <Image className="mr-2 h-4 w-4" />
+                                <span>Add Image URL</span>
+                            </button>
+                            <button onClick={() => { setIsCreatingArrow(true); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                <ArrowRight className="mr-2 h-4 w-4" />
+                                <span>Add Arrow</span>
+                            </button>
+                            <div role="separator" className="h-px bg-white/10 my-1" />
+                            <button onClick={() => { setIsImportOpen(true); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                <FolderDown className="mr-2 h-4 w-4" />
+                                <span>Import Document</span>
+                            </button>
+                            <div role="separator" className="h-px bg-white/10 my-1" />
+                            <button onClick={() => { setCamera({ x: 0, y: 0, zoom: 1 }); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                <Move className="mr-2 h-4 w-4" />
+                                <span>Reset View</span>
+                            </button>
+                            {selection && selection.size > 0 && (
+                                <>
+                                    <div role="separator" className="h-px bg-white/10 my-1" />
+                                    <button onClick={() => { setNodes(prev => prev.filter(n => !selection.has(n.id))); setSelection(new Set()); setContextMenu(null) }} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-red-400 outline-none hover:bg-red-500/20 hover:text-red-300 transition-colors">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        <span>Delete Node</span>
+                                    </button>
+                                    {selection.size > 1 && (
+                                        <>
+                                            <div role="separator" className="h-px bg-white/10 my-1" />
+                                            <button onClick={handleGroup} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                                <FolderDown className="mr-2 h-4 w-4" />
+                                                <span>Group Selection</span>
+                                            </button>
+                                        </>
+                                    )}
+                                    {Array.from(selection).some(id => nodes.find(n => n.id === id)?.groupId) && (
+                                        <>
+                                            <div role="separator" className="h-px bg-white/10 my-1" />
+                                            <button onClick={handleUngroup} className="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-1.5 text-sm text-white/90 outline-none hover:bg-white/10 hover:text-white transition-colors">
+                                                <FolderDown className="mr-2 h-4 w-4" />
+                                                <span>Ungroup</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    );
+                })()
             }
 
             {/* Hidden File Input for Image Upload */}

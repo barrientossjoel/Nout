@@ -13,7 +13,13 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
     if (!src) return null
 
     return (
-        <span className="relative inline-block my-2 group max-w-full leading-none">
+        <span
+            onDoubleClick={(e) => {
+                e.stopPropagation()
+                setIsFullscreen(true)
+            }}
+            className="relative inline-block my-2 group max-w-full leading-none cursor-pointer"
+        >
             <img
                 src={src}
                 alt={alt}

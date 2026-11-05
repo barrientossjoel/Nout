@@ -2,7 +2,7 @@
 
 import React, { useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Maximize2, X, Minimize2 } from 'lucide-react'
+import { Maximize2, X } from 'lucide-react'
 import { cn } from '../../lib/utils/utils'
 
 export interface ImageFullscreenButtonProps {
@@ -79,33 +79,19 @@ export function ImageFullscreenModal({ src, alt, onClose }: ImageFullscreenModal
             className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-8 animate-in fade-in duration-200 select-none cursor-zoom-out"
             onClick={onClose}
         >
-            {/* Top action controls */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onClose()
-                    }}
-                    className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg"
-                    title="Salir de pantalla completa (Esc)"
-                    aria-label="Salir de pantalla completa"
-                >
-                    <Minimize2 className="h-5 w-5" />
-                </button>
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onClose()
-                    }}
-                    className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/10 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg"
-                    title="Cerrar (Esc)"
-                    aria-label="Cerrar"
-                >
-                    <X className="h-5 w-5" />
-                </button>
-            </div>
+            {/* Top action control - single close / exit button */}
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                }}
+                className="absolute top-4 right-4 z-50 p-2.5 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-md border border-white/15 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-xl pointer-events-auto"
+                title="Cerrar (Esc)"
+                aria-label="Cerrar pantalla completa"
+            >
+                <X className="h-5 w-5" />
+            </button>
 
             {/* Centered Image Container */}
             <div
@@ -128,3 +114,4 @@ export function ImageFullscreenModal({ src, alt, onClose }: ImageFullscreenModal
         document.body
     )
 }
+
