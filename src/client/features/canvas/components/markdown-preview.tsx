@@ -1,10 +1,34 @@
-import React from 'react'
+import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ImageFullscreenButton, ImageFullscreenModal } from '../../../components/ui/image-fullscreen-modal'
 
 interface MarkdownPreviewProps {
     title?: string
     content: string
+}
+
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+    const [isFullscreen, setIsFullscreen] = useState(false)
+    if (!src) return null
+
+    return (
+        <span className="relative inline-block my-2 group max-w-full leading-none">
+            <img
+                src={src}
+                alt={alt}
+                className="max-w-full h-auto rounded-lg border border-border/40 block"
+            />
+            <ImageFullscreenButton onClick={() => setIsFullscreen(true)} />
+            {isFullscreen && (
+                <ImageFullscreenModal
+                    src={src}
+                    alt={alt}
+                    onClose={() => setIsFullscreen(false)}
+                />
+            )}
+        </span>
+    )
 }
 
 export const MemoizedMarkdownPreview = React.memo(({ title, content }: MarkdownPreviewProps) => {
@@ -20,7 +44,12 @@ export const MemoizedMarkdownPreview = React.memo(({ title, content }: MarkdownP
         }
     }
     return (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />
+            }}
+        >
             {cleanContent}
         </ReactMarkdown>
     );

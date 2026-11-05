@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import Image from '@tiptap/extension-image'
+import { CustomImageExtension } from './extensions/image'
 import { AudioExtension } from './extensions/audio'
 import { Markdown } from 'tiptap-markdown'
 import { useEffect, useRef, useState, useMemo, forwardRef, useImperativeHandle } from 'react'
@@ -154,7 +154,7 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({
             TaskItem.configure({
                 nested: true,
             }),
-            Image,
+            CustomImageExtension,
             AudioExtension,
             Table.configure({
                 resizable: true,

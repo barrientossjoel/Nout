@@ -6,6 +6,7 @@ import { Input } from '../../../components/ui/input'
 import { Editor } from '../../../components/editor/editor'
 import { CanvasTableNode } from './canvas-table-node'
 import { MemoizedMarkdownPreview } from './markdown-preview'
+import { ImageFullscreenButton, ImageFullscreenModal } from '../../../components/ui/image-fullscreen-modal'
 import { CanvasNode, CanvasEnv } from '../types'
 import { getArrowPaths } from '../utils/canvas-geometry'
 
@@ -51,6 +52,7 @@ const arrowColor = (envRef: React.RefObject<CanvasEnv>, nodeId: string): string 
 
 const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.RefObject<CanvasEnv> }) => {
     const [hasError, setHasError] = React.useState(false);
+    const [isFullscreen, setIsFullscreen] = React.useState(false);
 
     React.useEffect(() => {
         setHasError(false);
@@ -58,7 +60,7 @@ const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.Re
 
     return (
         <div
-            className="flex-1 relative group/img overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10 pointer-events-auto"
+            className="flex-1 relative group overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10 pointer-events-auto"
             onDoubleClick={(e) => {
                 e.stopPropagation();
                 envRef.current?.initiateEditImage(node.id, node.content);
@@ -70,13 +72,23 @@ const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.Re
                     <span className="text-[11px] opacity-70">Doble clic para cambiar URL</span>
                 </div>
             ) : (
-                <img
-                    src={node.content}
-                    alt="Canvas item"
-                    className="w-full h-full object-contain pointer-events-none select-none rounded-lg"
-                    draggable={false}
-                    onError={() => setHasError(true)}
-                />
+                <>
+                    <img
+                        src={node.content}
+                        alt="Canvas item"
+                        className="w-full h-full object-contain pointer-events-none select-none rounded-lg"
+                        draggable={false}
+                        onError={() => setHasError(true)}
+                    />
+                    <ImageFullscreenButton onClick={() => setIsFullscreen(true)} />
+                    {isFullscreen && (
+                        <ImageFullscreenModal
+                            src={node.content}
+                            alt="Canvas item"
+                            onClose={() => setIsFullscreen(false)}
+                        />
+                    )}
+                </>
             )}
         </div>
     );
