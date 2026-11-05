@@ -20,7 +20,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     this.state = { hasError: false, lastResetKey: props.resetKey }
   }
 
-  static getDerivedStateFromError(_: Error): Partial<ErrorBoundaryState> {
+  static getDerivedStateFromError(_error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true }
   }
 
@@ -57,6 +57,3 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return this.props.children
   }
 }
-
-
-

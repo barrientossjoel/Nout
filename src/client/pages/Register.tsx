@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -53,7 +54,7 @@ export default function Register() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
         setSuccess('');
@@ -83,7 +84,7 @@ export default function Register() {
                     window.dispatchEvent(new PopStateEvent('popstate'));
                 }, 1500);
             }
-        } catch (err) {
+        } catch {
             setError(t.error);
         }
     };
@@ -110,7 +111,7 @@ export default function Register() {
         });
     };
 
-    const navigate = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    const navigate = (e: MouseEvent<HTMLAnchorElement>, path: string) => {
         e.preventDefault();
         window.history.pushState({}, '', path);
         window.dispatchEvent(new PopStateEvent('popstate'));

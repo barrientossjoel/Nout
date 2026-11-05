@@ -11,7 +11,7 @@ import {
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw, Folder, Camera, Trash2, User } from "lucide-react"
+import { Search, Sun, Moon, Monitor, ChevronLeft, RotateCcw, Camera, User } from "lucide-react"
 import { cn } from "../../lib/utils/utils"
 import { useTheme } from "../theme-provider"
 import { useMediaQuery } from "../../hooks/useMediaQuery"
@@ -20,7 +20,7 @@ import { useLanguage } from "../../context/LanguageContext"
 import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar"
 import { CollaborationSettings } from "./collaboration-settings"
 import { ShortcutEditorRow } from "./shortcut-editor"
-import { useKeyboardShortcuts, type ShortcutId } from "../../context/KeyboardShortcutsContext"
+import { useKeyboardShortcuts, type ShortcutId, type ShortcutsMap, type ShortcutConfig } from "../../context/KeyboardShortcutsContext"
 import { AiSettings } from "./ai-settings"
 import { pickVaultFolder, saveVaultPath } from "../../../core/services/vault"
 import { isTauri } from "../../../core/utils/platform"
@@ -46,11 +46,6 @@ const FONT_SIZES = [
 interface ShortcutItem {
     label: string
     keys: string[]
-}
-
-interface ShortcutCategory {
-    name: string
-    items: ShortcutItem[]
 }
 
 const SHORTCUTS = [
@@ -785,9 +780,9 @@ export function SettingsDialog({
 // ─── ShortcutsTab ─────────────────────────────────────────────────────────────
 
 interface ShortcutsTabProps {
-    shortcuts: import('../../context/KeyboardShortcutsContext').ShortcutsMap
-    onSave: (id: import('../../context/KeyboardShortcutsContext').ShortcutId, cfg: import('../../context/KeyboardShortcutsContext').ShortcutConfig) => void
-    onReset: (id: import('../../context/KeyboardShortcutsContext').ShortcutId) => void
+    shortcuts: ShortcutsMap
+    onSave: (id: ShortcutId, cfg: ShortcutConfig) => void
+    onReset: (id: ShortcutId) => void
     onResetAll: () => void
 }
 

@@ -7,7 +7,7 @@ import { Editor } from '../../../components/editor/editor'
 import { CanvasTableNode } from './canvas-table-node'
 import { MemoizedMarkdownPreview } from './markdown-preview'
 import { CanvasNode, CanvasEnv } from '../types'
-import { getArrowPaths, generateId } from '../utils/canvas-geometry'
+import { getArrowPaths } from '../utils/canvas-geometry'
 
 interface CanvasNodeRendererProps {
     node: CanvasNode
@@ -48,6 +48,39 @@ const arrowColor = (envRef: React.RefObject<CanvasEnv>, nodeId: string): string 
 };
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
+
+const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.RefObject<CanvasEnv> }) => {
+    const [hasError, setHasError] = React.useState(false);
+
+    React.useEffect(() => {
+        setHasError(false);
+    }, [node.content]);
+
+    return (
+        <div
+            className="flex-1 relative group/img overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10 pointer-events-auto"
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+                envRef.current?.initiateEditImage(node.id, node.content);
+            }}
+        >
+            {hasError ? (
+                <div className="flex flex-col items-center justify-center p-3 text-xs text-muted-foreground text-center gap-1.5 bg-muted/30 w-full h-full rounded-lg border border-border/40 select-none">
+                    <span className="font-medium text-foreground/80">Imagen no disponible</span>
+                    <span className="text-[11px] opacity-70">Doble clic para cambiar URL</span>
+                </div>
+            ) : (
+                <img
+                    src={node.content}
+                    alt="Canvas item"
+                    className="w-full h-full object-contain pointer-events-none select-none rounded-lg"
+                    draggable={false}
+                    onError={() => setHasError(true)}
+                />
+            )}
+        </div>
+    );
+};
 
 const ArrowNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.RefObject<CanvasEnv> }) => {
     const env = envRef.current!;
@@ -205,7 +238,9 @@ const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps)
 
                 (node.type === 'arrow' || node.type === 'shape' || node.type === 'note')
                     ? "overflow-visible bg-transparent border-none shadow-none"
-                    : "rounded-lg shadow-sm overflow-visible bg-muted/50 backdrop-blur-sm border border-foreground/20",
+                    : node.type === 'image'
+                        ? "rounded-lg overflow-visible bg-transparent border-none shadow-none"
+                        : "rounded-lg shadow-sm overflow-visible bg-muted/50 backdrop-blur-sm border border-foreground/20",
                 node.type === 'table' && "overflow-visible",
 
                 "transition-shadow origin-[50%_-50px]",
@@ -483,6 +518,8 @@ const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps)
                         </div>
                     );
                 })()
+        ) : node.type === 'image' ? (
+            <ImageNodeContent node={node} envRef={envRef} />
         ) : node.type === 'arrow' ? (
             <ArrowNodeContent node={node} envRef={envRef} />
         ) : node.type === 'shape' ? (

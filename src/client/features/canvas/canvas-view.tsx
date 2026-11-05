@@ -2,17 +2,17 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { GripVertical, Plus, Trash2, Type, Move, MousePointer2, Image, Maximize, Minimize, X, Check, Link, PanelLeft, PanelTop, FileText, MessageSquare, Frame, ArrowRight, Square, Circle, FolderDown, Upload, ExternalLink, ZoomIn, ZoomOut, Table, MoreVertical, Pencil, Share2, Eraser, ChevronLeft, FolderInput } from 'lucide-react'
+import {
+    Trash2, Move, Image, Maximize, Minimize, X, Link, PanelLeft, PanelTop,
+    MessageSquare, ArrowRight, Square, FolderDown, Upload, ZoomIn, ZoomOut,
+    MoreVertical, Pencil, Share2, ChevronLeft, FolderInput
+} from 'lucide-react'
 import { cn } from '../../lib/utils/utils'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import type { Document } from '../../../core/types/notes'
 import { ImportDocsDialog } from './import-docs-dialog'
 import { MoveDocumentDialog } from '../documents/components/move-document-dialog'
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-import YPartyKitProvider from 'y-partykit/provider'
-import { IndexeddbPersistence } from 'y-indexeddb'
 
 import {
     DropdownMenu,
@@ -22,15 +22,6 @@ import {
     DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu"
 import { NotesPanel } from '../notes/components/notes-panel'
-import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-} from "../../components/ui/breadcrumb"
-import { Editor } from '../../components/editor/editor'
 import { ShareDialog } from '../collaboration/share-dialog'
 
 // New modular imports
@@ -42,7 +33,7 @@ import { useCanvasCamera } from './hooks/use-canvas-camera'
 import { useCanvasInteraction } from './hooks/use-canvas-interaction'
 import { MultiplayerCursors, CollaboratorAvatarStack, useLocalCursorBroadcast } from '../collaboration'
 import { useAuth } from '../../context/AuthContext'
-import { calculateBezierControls, getArrowMidpoint, getBestDynamicEnd, shortenLineEnd, ARROW_STROKE_PAD, generateId, toCanvasCoords } from './utils/canvas-geometry'
+import { calculateBezierControls, getArrowMidpoint, getBestDynamicEnd, shortenLineEnd, ARROW_STROKE_PAD, generateId } from './utils/canvas-geometry'
 import { useKeyboardShortcuts, matchesShortcut } from '../../context/KeyboardShortcutsContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -55,14 +46,16 @@ const isInputFocused = (target: HTMLElement): boolean =>
 const createImageNode = (
     content: string,
     camera: Camera,
-    containerRef: React.RefObject<HTMLDivElement>
+    containerRef: React.RefObject<HTMLDivElement>,
+    width = 300,
+    height = 200
 ): CanvasNode => ({
     id: generateId(),
     type: 'image',
-    x: -camera.x / camera.zoom + (containerRef.current?.clientWidth  || window.innerWidth)  / 2 / camera.zoom - 150,
-    y: -camera.y / camera.zoom + (containerRef.current?.clientHeight || window.innerHeight) / 2 / camera.zoom - 100,
-    width: 300,
-    height: 200,
+    x: -camera.x / camera.zoom + (containerRef.current?.clientWidth  || window.innerWidth)  / 2 / camera.zoom - width / 2,
+    y: -camera.y / camera.zoom + (containerRef.current?.clientHeight || window.innerHeight) / 2 / camera.zoom - height / 2,
+    width,
+    height,
     content,
 });
 
@@ -70,7 +63,7 @@ export function CanvasView({
     document: doc,
     documents = [],
     onUpdateDocument,
-    showSidebar,
+    showSidebar: _showSidebar,
     onToggleSidebar,
     showTabs,
     onToggleTabs,
@@ -91,7 +84,7 @@ export function CanvasView({
         } catch { return [] }
     }, [doc.id]); // Only re-parse if doc id changes to avoid reset
 
-    const { nodes, setNodes, ydoc, provider, ymap } = useCanvasSync(doc.id, initialNodes);
+    const { nodes, setNodes, provider } = useCanvasSync(doc.id, initialNodes);
     const { user } = useAuth();
 
     const initialCamera = useMemo(() => {
@@ -189,37 +182,68 @@ export function CanvasView({
     const [shareOpen, setShareOpen] = useState(false)
     const [isMoveOpen, setIsMoveOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const lastPasteTimeRef = useRef<number>(0)
 
-    const breadcrumbs = useMemo(() => {
-        const path: Array<{ id: string, title?: string, isRoot?: boolean }> = [];
-        let current: Document | undefined = doc;
-        while (current) {
-            path.unshift({ id: current.id, title: current.title });
-            if (current.parentId) {
-                current = documents?.find(d => d.id === current?.parentId);
-            } else {
-                current = undefined;
-            }
-        }
-        path.unshift({ id: 'dashboard', title: 'Documents', isRoot: true });
-        return path;
-    }, [doc, documents]);
-
-    const handleImageUpload = (file: File) => {
+    const handleImageUpload = useCallback((file: File) => {
         const reader = new FileReader()
         reader.onload = (e) => {
-            const node = createImageNode(e.target?.result as string, camera, containerRef)
+            const dataUrl = e.target?.result as string
+            if (!dataUrl) return
+
+            const img = new window.Image()
+            img.onload = () => {
+                const maxDim = 400
+                let w = img.naturalWidth || 300
+                let h = img.naturalHeight || 200
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) {
+                        h = Math.round((h * maxDim) / w)
+                        w = maxDim
+                    } else {
+                        w = Math.round((w * maxDim) / h)
+                        h = maxDim
+                    }
+                }
+                const node = createImageNode(dataUrl, camera, containerRef, w, h)
+                setNodes(prev => [...prev, node])
+                setSelection(new Set([node.id]))
+            }
+            img.onerror = () => {
+                const node = createImageNode(dataUrl, camera, containerRef)
+                setNodes(prev => [...prev, node])
+                setSelection(new Set([node.id]))
+            }
+            img.src = dataUrl
+        }
+        reader.readAsDataURL(file)
+    }, [camera, containerRef, setNodes, setSelection])
+
+    const addImageNodeFromUrl = useCallback((url: string) => {
+        const img = new window.Image()
+        img.onload = () => {
+            const maxDim = 400
+            let w = img.naturalWidth || 300
+            let h = img.naturalHeight || 200
+            if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                    h = Math.round((h * maxDim) / w)
+                    w = maxDim
+                } else {
+                    w = Math.round((w * maxDim) / h)
+                    h = maxDim
+                }
+            }
+            const node = createImageNode(url, camera, containerRef, w, h)
             setNodes(prev => [...prev, node])
             setSelection(new Set([node.id]))
         }
-        reader.readAsDataURL(file)
-    }
-
-    const addImageNodeFromUrl = useCallback((url: string) => {
-        const node = createImageNode(url, camera, containerRef)
-        setNodes(prev => [...prev, node])
-        setSelection(new Set([node.id]))
-    }, [camera, setNodes, setSelection, containerRef])
+        img.onerror = () => {
+            const node = createImageNode(url, camera, containerRef)
+            setNodes(prev => [...prev, node])
+            setSelection(new Set([node.id]))
+        }
+        img.src = url
+    }, [camera, containerRef, setNodes, setSelection])
 
     const triggerFileUpload = () => fileInputRef.current?.click()
 
@@ -228,29 +252,59 @@ export function CanvasView({
         if (file && file.type.startsWith('image/')) handleImageUpload(file)
     }
 
-    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const handlePaste = useCallback((e: React.ClipboardEvent | ClipboardEvent) => {
+        const now = Date.now()
+        if (now - lastPasteTimeRef.current < 300) return
+
         const items = Array.from(e.clipboardData?.items || [])
         const imageItem = items.find(item => item.type.startsWith('image/'))
         if (imageItem) {
             const file = imageItem.getAsFile()
-            if (file) { e.preventDefault(); handleImageUpload(file); return }
+            if (file) {
+                lastPasteTimeRef.current = now
+                e.preventDefault()
+                handleImageUpload(file)
+                return
+            }
         }
+
+        const files = Array.from(e.clipboardData?.files || [])
+        const imageFile = files.find(file => file.type.startsWith('image/'))
+        if (imageFile) {
+            lastPasteTimeRef.current = now
+            e.preventDefault()
+            handleImageUpload(imageFile)
+            return
+        }
+
         const htmlData = e.clipboardData?.getData('text/html') || ''
         if (htmlData) {
             const match = htmlData.match(/<img[^>]+src=["']([^"']+)["']/i)
             if (match?.[1]) {
                 const src = match[1]
+                lastPasteTimeRef.current = now
                 e.preventDefault()
-                if (src.startsWith('http://') || src.startsWith('https://')) addImageNodeFromUrl(src)
-                else if (src.startsWith('data:image/')) {
-                    fetch(src).then(r => r.blob()).then(blob => {
-                        const type = src.split(';')[0].split(':')[1]
-                        const ext = type.split('/')[1]?.replace('x-', '') || 'png'
-                        handleImageUpload(new File([blob], `pasted-image.${ext}`, { type }))
-                    }).catch(err => console.error('Canvas data URL paste failed:', err))
+                if (src.startsWith('http://') || src.startsWith('https://')) {
+                    addImageNodeFromUrl(src)
+                } else if (src.startsWith('data:image/')) {
+                    fetch(src)
+                        .then(r => r.blob())
+                        .then(blob => {
+                            const type = src.split(';')[0].split(':')[1]
+                            const ext = type.split('/')[1]?.replace('x-', '') || 'png'
+                            handleImageUpload(new File([blob], `pasted-image.${ext}`, { type }))
+                        })
+                        .catch(err => console.error('Canvas data URL paste failed:', err))
                 }
                 return
             }
+        }
+
+        const plainText = e.clipboardData?.getData('text/plain')?.trim() || ''
+        if (/^https?:\/\/.*\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(plainText) || plainText.startsWith('data:image/')) {
+            lastPasteTimeRef.current = now
+            e.preventDefault()
+            addImageNodeFromUrl(plainText)
         }
     }, [handleImageUpload, addImageNodeFromUrl])
 
@@ -403,7 +457,8 @@ export function CanvasView({
             if (matchesShortcut(e, shortcutsRef.current.canvasPan)) setIsSpacePressed(false)
         }
         const handleWindowPaste = (e: ClipboardEvent) => {
-            if (!isInputFocused(e.target as HTMLElement)) handlePaste(e as any)
+            if (readOnly || isModalOpen || editingId) return
+            if (!isInputFocused(e.target as HTMLElement)) handlePaste(e)
         }
         const handleClick = () => setContextMenu(null)
 
@@ -504,7 +559,6 @@ export function CanvasView({
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseLeave}
                 onContextMenu={handleContextMenu}
-                onPaste={handlePaste}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
                 onDrop={(e) => {
                     e.preventDefault()
@@ -895,6 +949,27 @@ export function CanvasView({
                                     <X className="h-4 w-4" />
                                 </Button>
                             </div>
+                            {modalMode === 'create' && (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full gap-2 text-xs h-9"
+                                        onClick={() => {
+                                            setIsModalOpen(false)
+                                            triggerFileUpload()
+                                        }}
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        <span>Subir desde este equipo</span>
+                                    </Button>
+                                    <div className="relative flex py-0.5 items-center">
+                                        <div className="flex-grow border-t border-border/40" />
+                                        <span className="flex-shrink mx-2 text-[11px] text-muted-foreground">o mediante enlace</span>
+                                        <div className="flex-grow border-t border-border/40" />
+                                    </div>
+                                </>
+                            )}
                             <div className="space-y-2">
                                 <label className="text-sm text-muted-foreground">Image URL</label>
                                 <div className="flex items-center gap-2">

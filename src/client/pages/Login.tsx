@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import { getApiUrl, initiateGoogleOAuth, setAuthToken } from '../services/api';
+import { cn } from '@/client/lib/utils/utils';
 
 const translations = {
     en: {
@@ -35,8 +37,6 @@ const translations = {
     }
 };
 
-import { cn } from '@/client/lib/utils/utils';
-
 export interface LoginProps {
     embedded?: boolean;
     onSuccess?: () => void;
@@ -58,7 +58,7 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError('');
         setSuccess('');
@@ -92,7 +92,7 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
                     }
                 }, 1500);
             }
-        } catch (err) {
+        } catch {
             setError(t.error);
         }
     };
@@ -123,7 +123,7 @@ export default function Login({ embedded = false, onSuccess, className }: LoginP
         });
     };
 
-    const navigate = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    const navigate = (e: MouseEvent<HTMLAnchorElement>, path: string) => {
         e.preventDefault();
         window.history.pushState({}, '', path);
         window.dispatchEvent(new PopStateEvent('popstate'));
