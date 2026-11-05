@@ -60,7 +60,7 @@ const ImageNodeContent = ({ node, envRef }: { node: CanvasNode; envRef: React.Re
 
     return (
         <div
-            className="flex-1 relative group overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10 pointer-events-auto"
+            className="flex-1 relative group overflow-hidden rounded-lg w-full h-full flex items-center justify-center select-none bg-muted/10"
             onDoubleClick={(e) => {
                 e.stopPropagation();
                 if (!hasError) {
@@ -261,7 +261,7 @@ const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps)
 
                 "transition-shadow origin-[50%_-50px]",
                 (!env.draggedNodeId || env.draggedNodeId !== node.id) ? "scale-100" : "",
-                (env.isDrawingMode || env.isEraserMode) && "pointer-events-none"
+                (env.isDrawingMode || env.isEraserMode || env.isSpacePressed || env.isPanning) && "pointer-events-none"
             )}
             style={{
                 transform: (env.draggedNodeId === node.id && env.hasMoved && node.type !== 'arrow')
@@ -270,21 +270,26 @@ const CanvasNodeRenderer = ({ node, envRef, triggers }: CanvasNodeRendererProps)
                 width: node.width,
                 height: node.height,
                 transition: env.draggedNodeId === node.id ? 'transform 0.05s ease-out' : 'transform 0.15s ease-out',
-                cursor: (node.type === 'note' || node.type === 'document' || node.type === 'shape' || node.type === 'image')
-                    ? (env.draggedNodeId === node.id ? 'grabbing' : 'grab')
-                    : 'default'
+                cursor: (env.isSpacePressed || env.isPanning)
+                    ? (env.isPanning ? 'grabbing' : 'grab')
+                    : (node.type === 'note' || node.type === 'document' || node.type === 'shape' || node.type === 'image')
+                        ? (env.draggedNodeId === node.id ? 'grabbing' : 'grab')
+                        : 'default'
             } as React.CSSProperties}
             onMouseDown={(e) => {
+                if (env.isSpacePressed || env.isPanning) return
                 if (node.type !== 'arrow') {
                     env.handleNodeMouseDown(e, node)
                 }
             }}
             onTouchStart={(e) => {
+                if (env.isSpacePressed || env.isPanning) return
                 if (node.type !== 'arrow') {
                     env.handleNodeTouchStart(e, node)
                 }
             }}
             onClick={(e) => {
+                if (env.isSpacePressed || env.isPanning) return
                 e.stopPropagation()
                 if (!e.shiftKey && env.selection.size <= 1) {
                     env.setSelection(new Set([node.id]))

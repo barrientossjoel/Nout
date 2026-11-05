@@ -114,13 +114,15 @@ export function useCanvasInteraction({
     }, [setNodes]);
 
     const handleNodeMouseDown = useCallback((e: React.MouseEvent, node: CanvasNode) => {
-        e.stopPropagation()
-        if (e.button === 1 && node.type === 'document') {
-            e.preventDefault()
-            onOpenDocument?.(node.content)
+        if (isSpacePressed) return
+        if (e.button === 1) {
+            if (node.type === 'document') {
+                e.preventDefault()
+                onOpenDocument?.(node.content)
+            }
             return
         }
-        if (e.button !== 0) return
+        e.stopPropagation()
 
         let newSelection = new Set(selection)
         const groupIds = getGroupNodes(node.id)
@@ -171,7 +173,7 @@ export function useCanvasInteraction({
         })
         dragStartPosition.current = { x: e.clientX, y: e.clientY }
         lastMousePosRef.current = { x: e.clientX, y: e.clientY }
-    }, [selection, nodes, camera, getContainerRect, getGroupNodes, moveToFront, onOpenDocument]);
+    }, [selection, nodes, camera, getContainerRect, getGroupNodes, moveToFront, onOpenDocument, isSpacePressed]);
 
     const handlePanningMode = useCallback((e: React.MouseEvent, setCamera: (c: any) => void) => {
         const dx = e.clientX - lastMousePosRef.current.x

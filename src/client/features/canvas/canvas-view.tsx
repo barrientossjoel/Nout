@@ -362,7 +362,7 @@ export function CanvasView({
     }
 
     const handleNodeTouchStart = (e: React.TouchEvent, node: CanvasNode) => {
-        if (e.touches.length !== 1 || node.type === 'arrow') return
+        if (isSpacePressed || e.touches.length !== 1 || node.type === 'arrow') return
         const touch = e.touches[0]
         const pseudoEvent = { clientX: touch.clientX, clientY: touch.clientY, button: 0, shiftKey: false, stopPropagation: () => { }, preventDefault: () => { } } as any
         handleNodeMouseDown(pseudoEvent, node)
@@ -441,7 +441,10 @@ export function CanvasView({
         if (readOnly) return
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement
-            if (matchesShortcut(e, shortcutsRef.current.canvasPan) && !isInputFocused(target)) setIsSpacePressed(true)
+            if (matchesShortcut(e, shortcutsRef.current.canvasPan) && !isInputFocused(target)) {
+                e.preventDefault()
+                setIsSpacePressed(true)
+            }
             if (matchesShortcut(e, shortcutsRef.current.canvasDelete) && selection.size > 0 && !isModalOpen && !isInputFocused(target)) deleteSelection()
             if (e.code === 'Escape') {
                 if (shapeDrawingMode) setShapeDrawingMode(null)
@@ -461,16 +464,19 @@ export function CanvasView({
             if (!isInputFocused(e.target as HTMLElement)) handlePaste(e)
         }
         const handleClick = () => setContextMenu(null)
+        const handleBlur = () => setIsSpacePressed(false)
 
         window.addEventListener('keydown', handleKeyDown)
         window.addEventListener('keyup', handleKeyUp)
         window.addEventListener('paste', handleWindowPaste)
         window.addEventListener('click', handleClick)
+        window.addEventListener('blur', handleBlur)
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
             window.removeEventListener('paste', handleWindowPaste)
             window.removeEventListener('click', handleClick)
+            window.removeEventListener('blur', handleBlur)
         }
     }, [selection, isModalOpen, editingId, handlePaste, deleteSelection, shapeDrawingMode, isCreatingArrow, isDrawingMode, isEraserMode, setIsCreatingArrow, setIsDrawingMode, setIsEraserMode])
 
@@ -571,7 +577,19 @@ export function CanvasView({
                 tabIndex={0}
                 style={{ cursor: isPanning ? 'grabbing' : isSpacePressed ? 'grab' : (isCreatingArrow || isDrawingMode || isEraserMode || shapeDrawingMode) ? 'crosshair' : 'default' }}
             >
+                {/* Pan Overlay: captures all mouse events when spacebar is held or canvas is panning */}
+                {(isSpacePressed || isPanning) && (
+                    <div
+                        className={cn(
+                            "absolute inset-0 z-[500]",
+                            isPanning ? "cursor-grabbing" : "cursor-grab"
+                        )}
+                        onMouseDown={handleMouseDown}
+                    />
+                )}
+
                 <div
+                    className={cn((isSpacePressed || isPanning) && "pointer-events-none")}
                     style={{
                         transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`,
                         transformOrigin: '0 0',
